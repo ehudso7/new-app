@@ -29,11 +29,11 @@ export default function DashboardOverview() {
         ...prev,
         todayVisitors: Math.floor(Math.random() * 50) + 150,
         todayClicks: Math.floor(Math.random() * 20) + 40,
-        todayEarnings: (Math.random() * 50 + 25).toFixed(2),
-        monthlyEarnings: (Math.random() * 500 + 1200).toFixed(2),
+        todayEarnings: Math.round((Math.random() * 50 + 25) * 100) / 100,
+        monthlyEarnings: Math.round((Math.random() * 500 + 1200) * 100) / 100,
         emailSubscribers: Math.floor(Math.random() * 10) + 245,
         activeDeals: 24,
-        conversionRate: (Math.random() * 2 + 4).toFixed(1),
+        conversionRate: Math.round((Math.random() * 2 + 4) * 10) / 10,
       }))
     }, 3000)
 
@@ -60,14 +60,14 @@ export default function DashboardOverview() {
         />
         <StatCard
           title="Today's Earnings"
-          value={`$${stats.todayEarnings}`}
+          value={`$${stats.todayEarnings.toFixed(2)}`}
           change="+15%"
           icon="💰"
           trend="up"
         />
         <StatCard
           title="Monthly Revenue"
-          value={`$${stats.monthlyEarnings}`}
+          value={`$${stats.monthlyEarnings.toFixed(2)}`}
           change="+24%"
           icon="📈"
           trend="up"
@@ -92,7 +92,7 @@ export default function DashboardOverview() {
         />
         <StatCard
           title="Conversion Rate"
-          value={`${stats.conversionRate}%`}
+          value={`${stats.conversionRate.toFixed(1)}%`}
           change="+0.3%"
           icon="🎯"
           trend="up"
