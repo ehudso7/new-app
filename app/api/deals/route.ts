@@ -28,12 +28,19 @@ async function fetchRealDeals(category: string, limit: number) {
   const rapidApiKey = process.env.RAPIDAPI_KEY
   const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
 
-  // If RapidAPI is configured, use it
+  // If RapidAPI is configured, try it with a timeout
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      // Add 5 second timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('RapidAPI timeout')), 5000)
+      )
+      const apiPromise = fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+
+      return await Promise.race([apiPromise, timeoutPromise]) as any
     } catch (error) {
-      console.error('RapidAPI error, falling back to curated deals:', error)
+      console.log('RapidAPI unavailable, using curated deals')
+      // Don't log full error in production to keep logs clean
     }
   }
 
