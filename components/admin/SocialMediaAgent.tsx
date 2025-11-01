@@ -261,7 +261,7 @@ export default function SocialMediaAgent() {
               Preview
             </label>
             <textarea
-              defaultValue="🔥 Wireless Bluetooth Earbuds is 65% OFF!\nWas: $89.99\nNow: $31.49\n\nhttps://dealpulse.com/deal/123?tag=dealsplus077-20\n\n#AmazonDeals #DealAlert #TechDeals"
+              defaultValue="🔥 Wireless Bluetooth Earbuds is 65% OFF!\nWas: $89.99\nNow: $31.49\n\n[DEAL_LINK_WILL_BE_INSERTED_HERE]\n\n#AmazonDeals #DealAlert #TechDeals"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
               rows={6}
               readOnly
