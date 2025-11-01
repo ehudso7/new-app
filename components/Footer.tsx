@@ -14,13 +14,15 @@ export default function Footer() {
               <span className="text-2xl font-bold">DealPulse</span>
             </div>
             <p className="text-gray-400 text-sm">
-              Discover the best Amazon deals and save money on every purchase. Your smart shopping companion.
+              We curate real Amazon discounts, double-check pricing, and link you directly to each product—no filler deals or placeholders.
             </p>
-            <div className="flex gap-4 mt-4">
-              <a href="https://twitter.com" className="text-gray-400 hover:text-white text-2xl">𝕏</a>
-              <a href="https://facebook.com" className="text-gray-400 hover:text-white text-2xl">📘</a>
-              <a href="https://instagram.com" className="text-gray-400 hover:text-white text-2xl">📸</a>
-              <a href="https://pinterest.com" className="text-gray-400 hover:text-white text-2xl">📌</a>
+            <div className="mt-4 space-y-2 text-gray-400 text-sm">
+              <p>
+                <span className="text-white font-semibold">Daily updates:</span> Verified every morning and evening (Eastern Time).
+              </p>
+              <p>
+                <span className="text-white font-semibold">Source feeds:</span> Amazon Gold Box, Best Sellers, Lightning Deals, and vendor price trackers.
+              </p>
             </div>
           </div>
 

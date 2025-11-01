@@ -143,7 +143,7 @@ export default function Header() {
       {/* Deal Alert Banner */}
       <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white py-2">
         <div className="max-w-7xl mx-auto px-4 text-center text-sm font-semibold">
-          🔥 <span className="animate-pulse">HOT DEALS!</span> Up to 70% OFF - Limited Time Only!
+          🔥 <span className="animate-pulse">HOT DEALS!</span> Verified Amazon discounts up to 50% off today
         </div>
       </div>
     </header>

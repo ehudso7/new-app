@@ -9,7 +9,7 @@ export default function FAQPage() {
   const faqs = [
     {
       question: 'How does DealPulse find deals?',
-      answer: 'DealPulse uses advanced AI algorithms to scan Amazon 24/7, monitoring millions of products for price drops, lightning deals, and exclusive discounts. We verify each deal to ensure genuine savings before featuring it on our platform.',
+      answer: 'DealPulse monitors Amazon Gold Box promotions, Best Sellers lists, trusted price trackers, and brand-direct promotions. We manually verify pricing, inventory, and review quality before publishing any deal.',
     },
     {
       question: 'Are these real Amazon deals?',
@@ -17,7 +17,7 @@ export default function FAQPage() {
     },
     {
       question: 'How often are deals updated?',
-      answer: 'Our system refreshes deals every 30 minutes to catch the latest discounts and lightning deals. Some deals may expire quickly, so we recommend acting fast when you see a great offer!',
+      answer: 'We check for new discounts every morning and evening (U.S. Eastern Time) and re-verify lightning deals shortly before we surface them. If a deal expires or the price changes, we remove it immediately.',
     },
     {
       question: 'Is DealPulse free to use?',

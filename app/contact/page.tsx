@@ -46,8 +46,10 @@ export default function ContactPage() {
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <div className="text-4xl mb-3">💬</div>
-            <h3 className="font-bold text-gray-900 mb-2">Social Media</h3>
-            <p className="text-gray-600">@dealpulse on all platforms</p>
+            <h3 className="font-bold text-gray-900 mb-2">Updates</h3>
+            <p className="text-gray-600 text-sm">
+              Email us for the latest curated digest or to request media resources. We publish public updates once weekly through our mailing list.
+            </p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <div className="text-4xl mb-3">⏰</div>

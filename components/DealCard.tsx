@@ -17,6 +17,10 @@ interface Deal {
   isLightningDeal?: boolean
   stockStatus?: string
   asin?: string
+  description?: string
+  tags?: string[]
+  lastVerified?: string
+  dealEndsAt?: string
 }
 
 interface DealCardProps {
@@ -26,9 +30,13 @@ interface DealCardProps {
 export default function DealCard({ deal }: DealCardProps) {
   const [isSaved, setIsSaved] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(0)
-  const [viewerCount, setViewerCount] = useState(0)
+  const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const savings = deal.originalPrice - deal.currentPrice
+
+  const affiliateImage = deal.asin
+    ? `https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${deal.asin}&format=_SL400_&ID=AsinImage&MarketPlace=US&ServiceVersion=20070822&WS=1&tag=${extractAffiliateTag(deal.amazonUrl)}`
+    : ''
+  const imageSrc = !imageError && (deal.image || affiliateImage)
 
   // Check if deal is already saved on mount
   useEffect(() => {
@@ -37,43 +45,28 @@ export default function DealCard({ deal }: DealCardProps) {
     setIsSaved(isAlreadySaved)
   }, [deal.id])
 
-  // Lightning deal countdown timer (for demo: random time between 1-6 hours)
+  // Lightning deal countdown timer based on real end time if provided
   useEffect(() => {
-    if (deal.isLightningDeal) {
-      const randomHours = Math.floor(Math.random() * 6) + 1
-      const endTime = Date.now() + randomHours * 60 * 60 * 1000
-
-      const interval = setInterval(() => {
-        const remaining = endTime - Date.now()
-        if (remaining <= 0) {
-          setTimeLeft(0)
-          clearInterval(interval)
-        } else {
-          setTimeLeft(remaining)
-        }
-      }, 1000)
-
-      return () => clearInterval(interval)
+    if (!deal.dealEndsAt) {
+      setTimeLeft(null)
+      return
     }
-  }, [deal.isLightningDeal])
 
-  // Simulated viewer count (viral social proof)
-  useEffect(() => {
-    // Random number between 15-150 viewers
-    const baseViewers = Math.floor(Math.random() * 135) + 15
-    setViewerCount(baseViewers)
+    const parsed = Date.parse(deal.dealEndsAt)
+    if (Number.isNaN(parsed)) {
+      setTimeLeft(null)
+      return
+    }
 
-    // Update viewer count every 10-30 seconds to simulate activity
-    const interval = setInterval(() => {
-      setViewerCount((prev) => {
-        const change = Math.floor(Math.random() * 10) - 4 // +/- 4 viewers
-        const newCount = Math.max(10, Math.min(200, prev + change))
-        return newCount
-      })
-    }, Math.random() * 20000 + 10000)
+    const update = () => {
+      const remaining = parsed - Date.now()
+      setTimeLeft(remaining > 0 ? remaining : 0)
+    }
 
+    update()
+    const interval = setInterval(update, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [deal.dealEndsAt])
 
   // Format countdown timer
   const formatTimeLeft = (ms: number) => {
@@ -172,11 +165,12 @@ export default function DealCard({ deal }: DealCardProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow relative">
-      {/* Viewer count - viral social proof */}
-      <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs font-semibold z-20 flex items-center gap-1">
-        <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-        {viewerCount} viewing
-      </div>
+      {deal.lastVerified && (
+        <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs font-semibold z-20 flex items-center gap-1">
+          <span className="inline-block w-2 h-2 bg-green-400 rounded-full"></span>
+          {formatVerified(deal.lastVerified)}
+        </div>
+      )}
 
       <div className="relative h-48 bg-gray-100">
         {deal.isLightningDeal && (
@@ -189,16 +183,16 @@ export default function DealCard({ deal }: DealCardProps) {
         </div>
 
         {/* Countdown timer for lightning deals */}
-        {deal.isLightningDeal && timeLeft > 0 && (
+        {deal.isLightningDeal && timeLeft !== null && timeLeft > 0 && (
           <div className="absolute bottom-2 left-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold text-center z-10">
             ⏰ Ends in: {formatTimeLeft(timeLeft)}
           </div>
         )}
 
         {/* Real Product Image */}
-        {deal.image && !imageError ? (
+        {imageSrc ? (
           <Image
-            src={deal.image}
+            src={imageSrc}
             alt={deal.title}
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
@@ -223,6 +217,10 @@ export default function DealCard({ deal }: DealCardProps) {
         >
           {deal.title}
         </h3>
+
+        {deal.description && (
+          <p className="text-sm text-gray-600 mb-3 line-clamp-3">{deal.description}</p>
+        )}
 
         <div className="flex items-center gap-2 mb-3">
           <div className="flex items-center">
@@ -249,6 +247,16 @@ export default function DealCard({ deal }: DealCardProps) {
         {deal.stockStatus && (
           <div className="text-orange-600 text-xs mb-2 font-semibold">
             {deal.stockStatus}
+          </div>
+        )}
+
+        {deal.tags && deal.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {deal.tags.slice(0, 4).map((tag) => (
+              <span key={tag} className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
+                #{tag}
+              </span>
+            ))}
           </div>
         )}
 
@@ -300,4 +308,30 @@ function getCategoryEmoji(category: string): string {
     beauty: '💄',
   }
   return emojis[category] || '🎁'
+}
+
+function formatVerified(lastVerified: string) {
+  const timestamp = Date.parse(lastVerified)
+  if (Number.isNaN(timestamp)) return 'Verified'
+
+  const diffMs = Date.now() - timestamp
+  const diffMinutes = Math.round(diffMs / (1000 * 60))
+  if (diffMinutes < 60) {
+    return `Verified ${diffMinutes} min ago`
+  }
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 48) {
+    return `Verified ${diffHours}h ago`
+  }
+  const diffDays = Math.round(diffHours / 24)
+  return `Verified ${diffDays}d ago`
+}
+
+function extractAffiliateTag(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.searchParams.get('tag') || 'dealsplus077-20'
+  } catch (error) {
+    return 'dealsplus077-20'
+  }
 }

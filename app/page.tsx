@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import DealCard from '@/components/DealCard'
 import { fetchDeals } from '@/utils/fetchDeals'
 
@@ -22,6 +22,38 @@ export default function Home() {
     }
     loadDeals()
   }, [])
+
+  const metrics = useMemo(() => {
+    if (!deals.length) {
+      return {
+        totalDeals: 0,
+        averageDiscount: 0,
+        maxSavings: 0,
+        verifiedToday: 0,
+      }
+    }
+
+    const totalDeals = deals.length
+    const averageDiscount =
+      deals.reduce((acc, deal) => acc + (deal.discount || 0), 0) / totalDeals
+    const maxSavings = Math.max(
+      ...deals.map((deal) => Math.max(0, (deal.originalPrice || 0) - (deal.currentPrice || 0))),
+    )
+
+    const verifiedToday = deals.filter((deal) => {
+      if (!deal.lastVerified) return false
+      const verifiedTime = Date.parse(deal.lastVerified)
+      if (Number.isNaN(verifiedTime)) return false
+      return Date.now() - verifiedTime <= 24 * 60 * 60 * 1000
+    }).length
+
+    return {
+      totalDeals,
+      averageDiscount,
+      maxSavings,
+      verifiedToday,
+    }
+  }, [deals])
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,10 +101,10 @@ export default function Home() {
       <section className="bg-gradient-to-r from-green-500 to-blue-500 text-white py-20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold mb-4">
-            Discover Today's Hottest Amazon Deals
+            Real Amazon Deals, Verified This Week
           </h1>
           <p className="text-xl mb-8">
-            AI-powered deal finder that saves you money on every purchase
+            Curated price drops across electronics, home, beauty, toys, and more—no fillers, just real savings
           </p>
           <div className="flex justify-center gap-4">
             <button
@@ -96,20 +128,24 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-4xl font-bold text-primary">500+</div>
-              <div className="text-gray-600 mt-2">Daily Deals</div>
+              <div className="text-4xl font-bold text-primary">{metrics.totalDeals}</div>
+              <div className="text-gray-600 mt-2">Deals Live Right Now</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary">70%</div>
-              <div className="text-gray-600 mt-2">Avg. Discount</div>
+              <div className="text-4xl font-bold text-primary">
+                {metrics.averageDiscount ? `${metrics.averageDiscount.toFixed(1)}%` : '0%'}
+              </div>
+              <div className="text-gray-600 mt-2">Average Discount</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary">$2.4M</div>
-              <div className="text-gray-600 mt-2">Saved by Users</div>
+              <div className="text-4xl font-bold text-primary">
+                ${metrics.maxSavings ? metrics.maxSavings.toFixed(0) : '0'}
+              </div>
+              <div className="text-gray-600 mt-2">Top Single Deal Savings</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary">50K+</div>
-              <div className="text-gray-600 mt-2">Happy Shoppers</div>
+              <div className="text-4xl font-bold text-primary">{metrics.verifiedToday}</div>
+              <div className="text-gray-600 mt-2">Deals Verified in 24h</div>
             </div>
           </div>
         </div>
@@ -160,7 +196,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-4xl font-bold mb-4">Never Miss a Deal Again</h2>
           <p className="text-xl mb-8">
-            Get instant notifications when we find amazing deals in your favorite categories
+            Get email alerts when we verify new Amazon discounts in the categories you care about
           </p>
           <form onSubmit={handleSubscribe} className="max-w-md mx-auto">
             <div className="flex gap-2">
@@ -187,7 +223,7 @@ export default function Home() {
             )}
           </form>
           <p className="mt-4 text-sm opacity-80">
-            Join 50,000+ smart shoppers. Unsubscribe anytime.
+            We send a single curated email per day. Unsubscribe anytime.
           </p>
         </div>
       </section>
@@ -200,27 +236,27 @@ export default function Home() {
             <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
               1
             </div>
-            <h3 className="text-xl font-semibold mb-2">AI Scans Millions of Products</h3>
+            <h3 className="text-xl font-semibold mb-2">We Track Amazon Price Drops</h3>
             <p className="text-gray-600">
-              Our AI continuously monitors Amazon for price drops and trending deals
+              We monitor Amazon best-seller lists, daily deals, and trusted price trackers to spot real discounts.
             </p>
           </div>
           <div className="text-center">
             <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
               2
             </div>
-            <h3 className="text-xl font-semibold mb-2">We Find the Best Deals</h3>
+            <h3 className="text-xl font-semibold mb-2">We Verify Each Listing</h3>
             <p className="text-gray-600">
-              Advanced algorithms identify products with the highest discounts and best reviews
+              Every deal is checked for in-stock status, discount size, review quality, and up-to-date pricing.
             </p>
           </div>
           <div className="text-center">
             <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
               3
             </div>
-            <h3 className="text-xl font-semibold mb-2">You Save Money</h3>
+            <h3 className="text-xl font-semibold mb-2">You Click & Save</h3>
             <p className="text-gray-600">
-              Click through to Amazon and purchase at the discounted price
+              Jump straight to the Amazon product page, take advantage of the discount, and enjoy the savings.
             </p>
           </div>
         </div>

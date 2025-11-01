@@ -10,12 +10,11 @@ export default function AboutPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Our Mission</h2>
           <p className="text-gray-700 mb-4 leading-relaxed">
             DealPulse was created with one goal in mind: to help you save money on every Amazon purchase.
-            We scan thousands of products daily to bring you the best deals, trending items, and exclusive discounts.
+            We review Amazon's Gold Box promotions, Best Sellers lists, and brand-direct offers twice per day to surface real discounts.
           </p>
           <p className="text-gray-700 leading-relaxed">
-            Our AI-powered system identifies genuine savings opportunities, filters out fake deals, and presents
-            only the most valuable offers. We believe smart shopping shouldn't require hours of research - that's
-            why we do the heavy lifting for you.
+            Our small team combines data tools and human verification to confirm pricing, stock levels, and review quality before publishing.
+            Smart shopping shouldn't require hours of research—that's why we do the heavy lifting for you.
           </p>
         </div>
 
@@ -33,7 +32,7 @@ export default function AboutPage() {
               <div className="text-4xl mb-2">⚡</div>
               <h3 className="font-bold mb-2">Real-Time Updates</h3>
               <p className="text-sm opacity-90">
-                Our system refreshes every 30 minutes to catch lightning deals and flash sales before they expire.
+                We refresh our catalog every morning and evening, and re-check lightning deals right before we highlight them.
               </p>
             </div>
             <div>
@@ -61,9 +60,9 @@ export default function AboutPage() {
                 1
               </div>
               <div>
-                <h3 className="font-bold text-gray-900">We Scan Amazon 24/7</h3>
+                <h3 className="font-bold text-gray-900">We Track Trusted Sources</h3>
                 <p className="text-gray-600">
-                  Our automated systems monitor millions of products across all categories to identify price drops.
+                  We monitor Amazon Gold Box, Best Sellers lists, and price-tracker alerts to spot meaningful discounts.
                 </p>
               </div>
             </li>
@@ -72,9 +71,9 @@ export default function AboutPage() {
                 2
               </div>
               <div>
-                <h3 className="font-bold text-gray-900">AI Filters the Best Deals</h3>
+                <h3 className="font-bold text-gray-900">We Verify Every Listing</h3>
                 <p className="text-gray-600">
-                  Our AI analyzes ratings, reviews, price history, and discount percentages to surface only quality deals.
+                  Each deal is checked for price accuracy, review quality, Prime eligibility, and in-stock status before it goes live.
                 </p>
               </div>
             </li>
@@ -93,9 +92,9 @@ export default function AboutPage() {
         </div>
 
         <div className="bg-gray-100 rounded-lg p-8 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Join Thousands of Smart Shoppers</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Join Our Verified Deal Digest</h2>
           <p className="text-gray-700 mb-6">
-            Start saving money today with DealPulse's curated Amazon deals
+            Start saving today with DealPulse's curated Amazon deals—updated twice daily and verified before publication.
           </p>
           <Link
             href="/"

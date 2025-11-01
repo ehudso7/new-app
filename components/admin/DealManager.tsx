@@ -1,242 +1,168 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
+const DEFAULT_CRON_NOTE = 'Set NEXT_PUBLIC_CRON_SECRET to test manual refresh from the dashboard.'
 
 export default function DealManager() {
-  const [autoFetch, setAutoFetch] = useState(true)
-  const [fetchInterval, setFetchInterval] = useState(30)
-  const [isRunning, setIsRunning] = useState(false)
+  const [manualRefreshState, setManualRefreshState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [manualMessage, setManualMessage] = useState<string>('')
+  const [cronNote, setCronNote] = useState(DEFAULT_CRON_NOTE)
 
-  const handleStartAgent = async () => {
-    setIsRunning(true)
-    // Simulate API call
-    setTimeout(() => {
-      alert('Deal fetching agent started! Deals will auto-update every ' + fetchInterval + ' minutes.')
-      setIsRunning(false)
-    }, 1000)
-  }
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_CRON_SECRET && process.env.NEXT_PUBLIC_CRON_SECRET !== 'your-secret-here') {
+      setCronNote('Using NEXT_PUBLIC_CRON_SECRET from your environment to authenticate refresh requests.')
+    }
+  }, [])
 
-  const handleManualFetch = async () => {
-    setIsRunning(true)
-    setTimeout(() => {
-      alert('Fetched 15 new deals successfully!')
-      setIsRunning(false)
-    }, 2000)
+  const triggerManualRefresh = async () => {
+    setManualRefreshState('loading')
+    setManualMessage('')
+
+    try {
+      const secret = process.env.NEXT_PUBLIC_CRON_SECRET
+      if (!secret || secret === 'your-secret-here') {
+        throw new Error('Add NEXT_PUBLIC_CRON_SECRET to trigger refresh from the dashboard.')
+      }
+
+      const response = await fetch('/api/deals/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${secret}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || `Refresh failed (${response.status})`)
+      }
+
+      setManualRefreshState('success')
+      setManualMessage(`Refreshed ${data.count || 0} deals at ${new Date(data.timestamp).toLocaleString()}.`)
+    } catch (error: any) {
+      setManualRefreshState('error')
+      setManualMessage(error.message || 'Refresh failed')
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Agent Control */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">🤖 Automated Deal Fetching Agent</h2>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-            <div>
-              <div className="font-semibold text-gray-800">Auto-Fetch Deals</div>
-              <div className="text-sm text-gray-600">Automatically discover and add trending deals</div>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoFetch}
-                onChange={(e) => setAutoFetch(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
+      <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Fetch Interval (minutes)
-            </label>
-            <input
-              type="number"
-              value={fetchInterval}
-              onChange={(e) => setFetchInterval(Number(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              min="5"
-              max="120"
-            />
+            <h2 className="text-xl font-bold text-gray-800">🤖 Deal refresh controls</h2>
+            <p className="text-sm text-gray-600">
+              DealPulse refreshes the curated dataset at 7:30 AM and 7:30 PM Eastern Time. Use the button to trigger an on-demand refresh when you publish new products or need to verify lightning deals immediately.
+            </p>
           </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleStartAgent}
-              disabled={isRunning}
-              className="flex-1 bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 disabled:opacity-50"
-            >
-              {isRunning ? '⏳ Starting...' : '▶️ Start Auto-Fetch Agent'}
-            </button>
-            <button
-              onClick={handleManualFetch}
-              disabled={isRunning}
-              className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 disabled:opacity-50"
-            >
-              {isRunning ? '⏳ Fetching...' : '🔄 Fetch Now (Manual)'}
-            </button>
-          </div>
+          <button
+            onClick={triggerManualRefresh}
+            disabled={manualRefreshState === 'loading'}
+            className="px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 disabled:opacity-50"
+          >
+            {manualRefreshState === 'loading' ? 'Refreshing…' : '🔄 Refresh deals now'}
+          </button>
         </div>
-      </div>
 
-      {/* Deal Sources */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">📡 Deal Sources</h2>
+        <p className="text-xs text-gray-500">{cronNote}</p>
 
+        {manualRefreshState === 'success' && (
+          <p className="text-sm text-green-600 bg-green-50 border border-green-100 rounded p-3">{manualMessage}</p>
+        )}
+        {manualRefreshState === 'error' && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded p-3">{manualMessage}</p>
+        )}
+      </section>
+
+      <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        <h2 className="text-xl font-bold text-gray-800">📡 Data sources</h2>
+        <p className="text-sm text-gray-600">
+          Configure at least one automated source. The curated dataset bundled with the app is always available and can be supplemented with live APIs.
+        </p>
         <div className="space-y-3">
-          <DealSource
-            name="Amazon Product API"
-            status="connected"
-            deals="150/day"
-            description="Official Amazon Product Advertising API"
-          />
-          <DealSource
-            name="RapidAPI Deals"
-            status="connected"
-            deals="200/day"
-            description="Third-party deal aggregator API"
-          />
-          <DealSource
-            name="Manual Curation"
+          <SourceRow
+            name="Curated dataset"
             status="active"
-            deals="20/day"
-            description="Hand-picked deals by you"
+            description="Local, version-controlled list of verified Amazon products."
+            action="Edit /data/curatedDeals.ts"
           />
-          <DealSource
-            name="Price Tracker (Keepa)"
-            status="inactive"
-            deals="0/day"
-            description="Track price drops automatically"
+          <SourceRow
+            name="RapidAPI real-time Amazon data"
+            status={process.env.NEXT_PUBLIC_HAS_RAPID_API === 'true' ? 'connected' : 'not configured'}
+            description="Optional live search via real-time-amazon-data API. Requires RAPIDAPI_KEY on the server."
+            action="Set RAPIDAPI_KEY and NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG"
+          />
+          <SourceRow
+            name="Manual CSV import"
+            status="manual"
+            description="Upload affiliate deal CSVs from partners or affiliate networks."
+            action="Build /admin/upload endpoint or use Supabase storage"
           />
         </div>
-      </div>
+      </section>
 
-      {/* API Configuration */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">🔑 API Configuration</h2>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Amazon Product API Key
-            </label>
-            <input
-              type="password"
-              placeholder="Enter your API key"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              RapidAPI Key
-            </label>
-            <input
-              type="password"
-              placeholder="Enter your RapidAPI key"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700">
-            💾 Save API Configuration
-          </button>
-
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="font-semibold text-yellow-800 mb-2">📝 API Setup Guide</div>
-            <ul className="text-sm text-yellow-700 space-y-1">
-              <li>• Amazon API: Sign up at https://affiliate-program.amazon.com/assoc_credentials/home</li>
-              <li>• RapidAPI: Free tier at https://rapidapi.com/hub</li>
-              <li>• Keepa: Premium API at https://keepa.com/#!api</li>
-            </ul>
-          </div>
+      <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        <h2 className="text-xl font-bold text-gray-800">🎯 Filter defaults</h2>
+        <p className="text-sm text-gray-600">
+          These filters mirror the criteria used by the curated dataset. Update them when you connect a live data source so the front-end stays consistent.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FilterCard label="Minimum discount" value="20%" helper="Deals below this are dropped." />
+          <FilterCard label="Minimum rating" value="4.0 ★" helper="Lower-rated items are hidden." />
+          <FilterCard label="Minimum reviews" value="500" helper="Ensures social proof." />
+          <FilterCard label="Lightning deal buffer" value="60 min" helper="Re-verify within an hour of expiry." />
         </div>
+      </section>
+
+      <section className="bg-white rounded-lg shadow-md p-6 space-y-4">
+        <h2 className="text-xl font-bold text-gray-800">🗓️ Automate with Vercel Cron</h2>
+        <ol className="list-decimal pl-6 space-y-2 text-sm text-gray-600">
+          <li>Create a cron job at <code className="bg-gray-100 px-1 rounded">https://vercel.com/&lt;project&gt;/settings/cron</code> with <strong>0 11 * * *</strong> and <strong>0 23 * * *</strong> (7:00 AM / 7:00 PM ET).</li>
+          <li>Set the request URL to <code className="bg-gray-100 px-1 rounded">https://your-domain.com/api/deals/refresh</code>.</li>
+          <li>Add the header <code className="bg-gray-100 px-1 rounded">Authorization: Bearer &lt;CRON_SECRET&gt;</code> and define the same value as <code>CRON_SECRET</code> and <code>NEXT_PUBLIC_CRON_SECRET</code> in your environment.</li>
+        </ol>
+      </section>
+    </div>
+  )
+}
+
+function SourceRow({ name, status, description, action }: { name: string; status: 'active' | 'connected' | 'manual' | 'not configured'; description: string; action: string }) {
+  const statusBadge = {
+    active: 'bg-green-100 text-green-700',
+    connected: 'bg-blue-100 text-blue-700',
+    manual: 'bg-yellow-100 text-yellow-700',
+    'not configured': 'bg-gray-100 text-gray-600',
+  }[status]
+
+  const statusLabel = {
+    active: 'Active',
+    connected: 'Connected',
+    manual: 'Manual',
+    'not configured': 'Not configured',
+  }[status]
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 bg-gray-50 rounded-lg">
+      <div>
+        <div className="font-semibold text-gray-800">{name}</div>
+        <p className="text-sm text-gray-600">{description}</p>
       </div>
-
-      {/* Deal Filters */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">🎯 Smart Filters</h2>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Minimum Discount %
-            </label>
-            <input
-              type="number"
-              defaultValue={30}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              min="0"
-              max="100"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Minimum Rating
-            </label>
-            <input
-              type="number"
-              defaultValue={4.0}
-              step="0.1"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              min="0"
-              max="5"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Minimum Reviews
-            </label>
-            <input
-              type="number"
-              defaultValue={100}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              min="0"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Categories to Include
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {['Electronics', 'Home', 'Fashion', 'Sports', 'Toys', 'Beauty'].map((cat) => (
-                <label key={cat} className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked className="rounded" />
-                  <span className="text-sm text-gray-700">{cat}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <button className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700">
-            💾 Save Filter Settings
-          </button>
-        </div>
+      <div className="flex flex-col md:items-end gap-2 text-sm">
+        <span className={`inline-flex items-center px-3 py-1 rounded-full font-medium ${statusBadge}`}>{statusLabel}</span>
+        <span className="text-gray-500">{action}</span>
       </div>
     </div>
   )
 }
 
-function DealSource({ name, status, deals, description }: any) {
-  const statusColor = status === 'connected' || status === 'active' ? 'green' : 'gray'
-
+function FilterCard({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-      <div className="flex items-center gap-3">
-        <div className={`w-3 h-3 rounded-full bg-${statusColor}-500`} />
-        <div>
-          <div className="font-semibold text-gray-800">{name}</div>
-          <div className="text-sm text-gray-600">{description}</div>
-        </div>
-      </div>
-      <div className="text-right">
-        <div className="font-semibold text-gray-800">{deals}</div>
-        <div className={`text-sm text-${statusColor}-600 capitalize`}>{status}</div>
-      </div>
+    <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+      <div className="text-sm text-gray-500 uppercase tracking-wide">{label}</div>
+      <div className="text-2xl font-bold text-gray-800">{value}</div>
+      <div className="text-xs text-gray-500 mt-1">{helper}</div>
     </div>
   )
 }
