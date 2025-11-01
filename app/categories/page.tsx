@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { fetchDeals } from '@/utils/fetchDeals'
 import DealCard from '@/components/DealCard'
 
 export default function CategoriesPage() {
-  const [selectedCategory, setSelectedCategory] = useState('electronics')
-  const [deals, setDeals] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const categories = [
     { id: 'electronics', name: 'Electronics', icon: '📱', color: 'from-blue-500 to-purple-500' },
@@ -19,15 +18,41 @@ export default function CategoriesPage() {
     { id: 'beauty', name: 'Beauty & Health', icon: '💄', color: 'from-purple-500 to-pink-500' },
   ]
 
+  const DEFAULT_CATEGORY = 'electronics'
+
+  const getValidCategory = (category: string | null) =>
+    categories.some((c) => c.id === category) ? (category as string) : DEFAULT_CATEGORY
+
+  const [selectedCategory, setSelectedCategory] = useState(() => getValidCategory(searchParams.get('category')))
+  const [deals, setDeals] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
   useEffect(() => {
     loadCategoryDeals(selectedCategory)
   }, [selectedCategory])
+
+  useEffect(() => {
+    const categoryFromParams = getValidCategory(searchParams.get('category'))
+    setSelectedCategory((prev) => (prev === categoryFromParams ? prev : categoryFromParams))
+  }, [searchParams])
 
   const loadCategoryDeals = async (category: string) => {
     setLoading(true)
     const fetchedDeals = await fetchDeals(category, 24)
     setDeals(fetchedDeals)
     setLoading(false)
+  }
+
+  const handleCategorySelect = (categoryId: string) => {
+    if (categoryId !== selectedCategory) {
+      setSelectedCategory(categoryId)
+    }
+
+    if (categoryId === DEFAULT_CATEGORY) {
+      router.replace('/categories', { scroll: false })
+    } else {
+      router.replace(`/categories?category=${categoryId}`, { scroll: false })
+    }
   }
 
   const selectedCat = categories.find(c => c.id === selectedCategory)
@@ -46,7 +71,7 @@ export default function CategoriesPage() {
           {categories.map((category) => (
             <button
               key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
+              onClick={() => handleCategorySelect(category.id)}
               className={`p-6 rounded-xl transition-all ${
                 selectedCategory === category.id
                   ? `bg-gradient-to-br ${category.color} text-white shadow-lg scale-105`
