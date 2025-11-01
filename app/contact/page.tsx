@@ -9,19 +9,35 @@ export default function ContactPage() {
     subject: '',
     message: '',
   })
-  const [submitted, setSubmitted] = useState(false)
+  const [submittedMessage, setSubmittedMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
 
-    setSubmitted(true)
-    setLoading(false)
-    setFormData({ name: '', email: '', subject: '', message: '' })
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to send message right now.')
+      }
+
+      setSubmittedMessage(result.message || 'Thanks for reaching out!')
+      setFormData({ name: '', email: '', subject: '', message: '' })
+    } catch (err: any) {
+      setError(err.message || 'We could not send your message. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -45,9 +61,12 @@ export default function ContactPage() {
             </a>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
-            <div className="text-4xl mb-3">💬</div>
-            <h3 className="font-bold text-gray-900 mb-2">Social Media</h3>
-            <p className="text-gray-600">@dealpulse on all platforms</p>
+            <div className="text-4xl mb-3">🛍️</div>
+            <h3 className="font-bold text-gray-900 mb-2">Real-Time Deals</h3>
+            <p className="text-gray-600">
+              Track price drops on <a href="https://www.amazon.com/gp/goldbox" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Amazon Gold Box</a>
+              {' '}or follow <a href="https://x.com/AmazonDeals" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@AmazonDeals on X</a>.
+            </p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <div className="text-4xl mb-3">⏰</div>
@@ -57,15 +76,13 @@ export default function ContactPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-8">
-          {submitted ? (
+          {submittedMessage ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">✅</div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Message Sent!</h2>
-              <p className="text-gray-600 mb-6">
-                Thank you for contacting us. We'll get back to you within 24 hours.
-              </p>
+              <p className="text-gray-600 mb-6">{submittedMessage}</p>
               <button
-                onClick={() => setSubmitted(false)}
+                onClick={() => setSubmittedMessage(null)}
                 className="text-primary font-semibold hover:underline"
               >
                 Send another message
@@ -73,6 +90,12 @@ export default function ContactPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
+              {error && (
+                <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
+                  {error}
+                </div>
+              )}
+
               <div className="mb-6">
                 <label htmlFor="name" className="block text-gray-700 font-semibold mb-2">
                   Name *
@@ -148,7 +171,7 @@ export default function ContactPage() {
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-4 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all disabled:opacity-50"
               >
-                {loading ? 'Sending...' : 'Send Message'}
+                {loading ? 'Sending…' : 'Send Message'}
               </button>
             </form>
           )}

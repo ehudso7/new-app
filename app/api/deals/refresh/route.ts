@@ -7,7 +7,14 @@ export async function POST(request: Request) {
   try {
     // Verify request is from authorized source (cron or admin)
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || 'your-secret-here'
+    const cronSecret = process.env.CRON_SECRET
+
+    if (!cronSecret) {
+      return NextResponse.json(
+        { success: false, error: 'CRON_SECRET is not configured on the server.' },
+        { status: 500 }
+      )
+    }
 
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json(

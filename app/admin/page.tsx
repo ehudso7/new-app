@@ -22,6 +22,7 @@ export default function AdminDashboard() {
     if (password === 'dealpulse2025') {
       setIsAuthenticated(true)
       localStorage.setItem('adminAuth', 'true')
+      localStorage.setItem('adminPassword', password)
     } else {
       alert('Invalid password')
     }
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     setIsAuthenticated(false)
     localStorage.removeItem('adminAuth')
+    localStorage.removeItem('adminPassword')
     setPassword('')
   }
 

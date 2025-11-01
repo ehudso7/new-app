@@ -12,6 +12,16 @@ export default function Home() {
   const [subscribeLoading, setSubscribeLoading] = useState(false)
   const [subscribeMessage, setSubscribeMessage] = useState('')
 
+  const totalDeals = deals.length
+  const averageDiscount = totalDeals
+    ? deals.reduce((acc, deal) => acc + (deal.discount || 0), 0) / totalDeals
+    : 0
+  const estimatedSavings = deals.reduce((acc, deal) => {
+    const savings = (deal.originalPrice || 0) - (deal.currentPrice || 0)
+    return savings > 0 ? acc + savings : acc
+  }, 0)
+  const lightningDeals = deals.filter((deal) => deal.isLightningDeal).length
+
   useEffect(() => {
     // Fetch real deals from API
     async function loadDeals() {
@@ -72,7 +82,7 @@ export default function Home() {
             Discover Today's Hottest Amazon Deals
           </h1>
           <p className="text-xl mb-8">
-            AI-powered deal finder that saves you money on every purchase
+            Verified discounts updated throughout the day so you never miss a price drop
           </p>
           <div className="flex justify-center gap-4">
             <button
@@ -96,20 +106,20 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-4xl font-bold text-primary">500+</div>
-              <div className="text-gray-600 mt-2">Daily Deals</div>
+              <div className="text-4xl font-bold text-primary">{loading ? '—' : totalDeals}</div>
+              <div className="text-gray-600 mt-2">Live Deals Displayed</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary">70%</div>
-              <div className="text-gray-600 mt-2">Avg. Discount</div>
+              <div className="text-4xl font-bold text-primary">{loading ? '—' : `${averageDiscount.toFixed(1)}%`}</div>
+              <div className="text-gray-600 mt-2">Average Discount</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary">$2.4M</div>
-              <div className="text-gray-600 mt-2">Saved by Users</div>
+              <div className="text-4xl font-bold text-primary">{loading ? '—' : `$${estimatedSavings.toFixed(2)}`}</div>
+              <div className="text-gray-600 mt-2">Potential Savings vs. List Price</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-primary">50K+</div>
-              <div className="text-gray-600 mt-2">Happy Shoppers</div>
+              <div className="text-4xl font-bold text-primary">{loading ? '—' : lightningDeals}</div>
+              <div className="text-gray-600 mt-2">Lightning Deals Active</div>
             </div>
           </div>
         </div>

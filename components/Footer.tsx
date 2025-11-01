@@ -16,11 +16,39 @@ export default function Footer() {
             <p className="text-gray-400 text-sm">
               Discover the best Amazon deals and save money on every purchase. Your smart shopping companion.
             </p>
-            <div className="flex gap-4 mt-4">
-              <a href="https://twitter.com" className="text-gray-400 hover:text-white text-2xl">𝕏</a>
-              <a href="https://facebook.com" className="text-gray-400 hover:text-white text-2xl">📘</a>
-              <a href="https://instagram.com" className="text-gray-400 hover:text-white text-2xl">📸</a>
-              <a href="https://pinterest.com" className="text-gray-400 hover:text-white text-2xl">📌</a>
+            <div className="flex flex-col gap-2 mt-4 text-sm text-gray-400">
+              <a
+                href="https://www.amazon.com/gp/goldbox"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors"
+              >
+                🔗 Amazon Gold Box – Today&apos;s Deals
+              </a>
+              <a
+                href="https://x.com/AmazonDeals"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors"
+              >
+                𝕏 @AmazonDeals (official)
+              </a>
+              <a
+                href="https://www.instagram.com/amazon/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors"
+              >
+                📸 Instagram @amazon
+              </a>
+              <a
+                href="https://www.pinterest.com/amazon/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors"
+              >
+                📌 Pinterest – Amazon Finds
+              </a>
             </div>
           </div>
 
@@ -59,12 +87,9 @@ export default function Footer() {
               <li><Link href="/terms" className="text-gray-400 hover:text-white">Terms of Service</Link></li>
             </ul>
             <div className="mt-4">
-              <a
-                href="mailto:support@dealpulse.com"
-                className="text-primary hover:text-green-400 font-semibold"
-              >
-                📧 support@dealpulse.com
-              </a>
+              <div className="text-gray-400 text-sm">
+                📧 <a href="mailto:support@dealpulse.com" className="text-primary hover:text-green-400 font-semibold">support@dealpulse.com</a>
+              </div>
             </div>
           </div>
         </div>

@@ -33,7 +33,7 @@ export default function AboutPage() {
               <div className="text-4xl mb-2">⚡</div>
               <h3 className="font-bold mb-2">Real-Time Updates</h3>
               <p className="text-sm opacity-90">
-                Our system refreshes every 30 minutes to catch lightning deals and flash sales before they expire.
+                Automated syncs run multiple times per day, and manual refreshes pull the latest lightning deals on demand.
               </p>
             </div>
             <div>

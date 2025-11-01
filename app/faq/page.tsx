@@ -9,7 +9,7 @@ export default function FAQPage() {
   const faqs = [
     {
       question: 'How does DealPulse find deals?',
-      answer: 'DealPulse uses advanced AI algorithms to scan Amazon 24/7, monitoring millions of products for price drops, lightning deals, and exclusive discounts. We verify each deal to ensure genuine savings before featuring it on our platform.',
+      answer: 'DealPulse aggregates data from the Real-Time Amazon Data API on RapidAPI and a curated catalog of verified bestsellers. Every listing includes a live Amazon link so you can validate the current price before purchasing.',
     },
     {
       question: 'Are these real Amazon deals?',
@@ -17,7 +17,7 @@ export default function FAQPage() {
     },
     {
       question: 'How often are deals updated?',
-      answer: 'Our system refreshes deals every 30 minutes to catch the latest discounts and lightning deals. Some deals may expire quickly, so we recommend acting fast when you see a great offer!',
+      answer: 'We run scheduled syncs several times per day and refresh the catalog on demand from the admin dashboard. Lightning deals can change quickly, so we recommend checking the Amazon product page for the latest availability.',
     },
     {
       question: 'Is DealPulse free to use?',
