@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 
 interface Deal {
@@ -29,6 +29,32 @@ export default function DealCard({ deal }: DealCardProps) {
   const [timeLeft, setTimeLeft] = useState(0)
   const [viewerCount, setViewerCount] = useState(0)
   const savings = deal.originalPrice - deal.currentPrice
+
+  const resolvedAmazonUrl = useMemo(() => {
+    const affiliateTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG
+    const candidate = (deal.amazonUrl || '').trim()
+
+    if (candidate) {
+      try {
+        const url = candidate.startsWith('http') ? new URL(candidate) : new URL(`https://www.amazon.com${candidate.startsWith('/') ? '' : '/'}${candidate}`)
+        if (!/\/undefined/i.test(url.pathname)) {
+          if (affiliateTag) {
+            url.searchParams.set('tag', affiliateTag)
+          }
+          return url.toString()
+        }
+      } catch (error) {
+        console.warn('Invalid deal URL, falling back to search', candidate, error)
+      }
+    }
+
+    const fallback = new URL('https://www.amazon.com/s')
+    fallback.searchParams.set('k', deal.title)
+    if (affiliateTag) {
+      fallback.searchParams.set('tag', affiliateTag)
+    }
+    return fallback.toString()
+  }, [deal.amazonUrl, deal.title])
 
   // Check if deal is already saved on mount
   useEffect(() => {
@@ -101,7 +127,7 @@ export default function DealCard({ deal }: DealCardProps) {
     }
 
     // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    window.open(resolvedAmazonUrl, '_blank', 'noopener,noreferrer')
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -117,7 +143,7 @@ export default function DealCard({ deal }: DealCardProps) {
       setIsSaved(false)
     } else {
       // Add to saved
-      saved.push(deal)
+      saved.push({ ...deal, amazonUrl: resolvedAmazonUrl })
       setIsSaved(true)
     }
 
@@ -140,7 +166,7 @@ export default function DealCard({ deal }: DealCardProps) {
     const shareData = {
       title: deal.title,
       text: `${deal.discount}% off! Was $${deal.originalPrice}, now $${deal.currentPrice}`,
-      url: deal.amazonUrl,
+      url: resolvedAmazonUrl,
     }
 
     try {
@@ -149,7 +175,7 @@ export default function DealCard({ deal }: DealCardProps) {
         await navigator.share(shareData)
       } else {
         // Fallback: Copy to clipboard
-        await navigator.clipboard.writeText(deal.amazonUrl)
+        await navigator.clipboard.writeText(resolvedAmazonUrl)
         alert('Link copied to clipboard!')
       }
 

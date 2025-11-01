@@ -61,28 +61,48 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
 
   const data = await response.json()
 
-  // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  const products = Array.isArray(data.data?.products) ? data.data.products : []
 
-    return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
-      originalPrice: originalPrice,
-      currentPrice: price,
-      discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
-      isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
-    }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  const normalizedDeals = products
+    .map((item: any) => {
+      const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
+      const fallbackOriginal = price > 0 ? price * 1.5 : 0
+      const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || `${fallbackOriginal}`)
+      const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+      const asin = resolveAsin(item)
+      const amazonUrl = buildAmazonAffiliateLink({
+        asin,
+        urls: [item.product_detail_url, item.product_url, item.product_link],
+        tag,
+        fallbackQuery: item.product_title || searchTerm,
+      })
+
+      return {
+        id: asin || item.asin || `deal-${Date.now()}-${Math.random()}`,
+        title: item.product_title || 'Amazon Product',
+        originalPrice,
+        currentPrice: price,
+        discount,
+        rating: parseFloat(item.product_star_rating || '4.5'),
+        reviews: parseInt(item.product_num_ratings || '100'),
+        image: item.product_photo || '',
+        category: detectCategory(item.product_title),
+        amazonUrl,
+        asin,
+        isLightningDeal: discount > 50,
+        stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      }
+    })
+    .filter((deal: any) => {
+      return (
+        Boolean(deal.image) &&
+        deal.discount >= 20 &&
+        Boolean(deal.amazonUrl) &&
+        !deal.amazonUrl.includes('undefined')
+      )
+    })
+
+  return normalizedDeals.slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -299,6 +319,96 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ...deal,
     id: `${deal.id}-${index}`,
   }))
+}
+
+function resolveAsin(item: any): string | null {
+  const candidates = [
+    item.asin,
+    item.parent_asin,
+    extractAsinFromUrl(item.product_detail_url),
+    extractAsinFromUrl(item.product_url),
+    extractAsinFromUrl(item.product_link),
+  ]
+
+  const asinCandidate = candidates.find((value) => typeof value === 'string' && value.trim())
+  return asinCandidate ? asinCandidate.trim().toUpperCase() : null
+}
+
+function buildAmazonAffiliateLink({
+  asin,
+  urls = [],
+  tag,
+  fallbackQuery,
+}: {
+  asin?: string | null
+  urls?: Array<string | null | undefined>
+  tag: string
+  fallbackQuery: string
+}) {
+  const candidates: string[] = []
+
+  if (asin) {
+    candidates.push(`https://www.amazon.com/dp/${asin}`)
+  }
+
+  urls.forEach((url) => {
+    if (typeof url === 'string' && url.trim()) {
+      candidates.push(url.trim())
+    }
+  })
+
+  for (const candidate of candidates) {
+    const normalized = normalizeAmazonUrl(candidate)
+    if (!normalized) continue
+
+    try {
+      const url = new URL(normalized)
+      if (tag) {
+        url.searchParams.set('tag', tag)
+      }
+      return url.toString()
+    } catch (error) {
+      console.warn('Invalid Amazon URL candidate received from RapidAPI:', candidate, error)
+    }
+  }
+
+  const searchUrl = new URL('https://www.amazon.com/s')
+  searchUrl.searchParams.set('k', fallbackQuery || 'amazon deals')
+  if (tag) {
+    searchUrl.searchParams.set('tag', tag)
+  }
+  return searchUrl.toString()
+}
+
+function normalizeAmazonUrl(url: string): string | null {
+  const trimmed = url.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed
+  }
+
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`
+  }
+
+  return `https://www.amazon.com${trimmed.startsWith('/') ? '' : '/'}${trimmed}`
+}
+
+function extractAsinFromUrl(url?: string | null): string | null {
+  if (!url || typeof url !== 'string') {
+    return null
+  }
+
+  const asinMatch = url.match(/(?:dp|gp\/product|ASIN)=([A-Z0-9]{10})/i)
+  if (asinMatch) {
+    return asinMatch[1].toUpperCase()
+  }
+
+  const pathMatch = url.match(/\/([A-Z0-9]{10})(?:[/?]|$)/i)
+  return pathMatch ? pathMatch[1].toUpperCase() : null
 }
 
 function detectCategory(title: string): string {
