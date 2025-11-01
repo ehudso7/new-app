@@ -2,11 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { fetchDeals } from '@/utils/fetchDeals'
 import DealCard from '@/components/DealCard'
 
 export default function CategoriesPage() {
-  const [selectedCategory, setSelectedCategory] = useState('electronics')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const categoryParam = searchParams.get('category') || 'electronics'
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam)
   const [deals, setDeals] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -20,8 +24,21 @@ export default function CategoriesPage() {
   ]
 
   useEffect(() => {
+    // Update category from URL params if present
+    const categoryFromUrl = searchParams.get('category')
+    if (categoryFromUrl && categoryFromUrl !== selectedCategory) {
+      setSelectedCategory(categoryFromUrl)
+    }
+  }, [searchParams, selectedCategory])
+
+  useEffect(() => {
     loadCategoryDeals(selectedCategory)
   }, [selectedCategory])
+
+  const handleCategoryClick = (categoryId: string) => {
+    setSelectedCategory(categoryId)
+    router.push(`/categories?category=${categoryId}`)
+  }
 
   const loadCategoryDeals = async (category: string) => {
     setLoading(true)
@@ -46,7 +63,7 @@ export default function CategoriesPage() {
           {categories.map((category) => (
             <button
               key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
+              onClick={() => handleCategoryClick(category.id)}
               className={`p-6 rounded-xl transition-all ${
                 selectedCategory === category.id
                   ? `bg-gradient-to-br ${category.color} text-white shadow-lg scale-105`
