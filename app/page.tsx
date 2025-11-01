@@ -8,6 +8,9 @@ export default function Home() {
   const [deals, setDeals] = useState<any[]>([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [email, setEmail] = useState('')
+  const [subscribeLoading, setSubscribeLoading] = useState(false)
+  const [subscribeMessage, setSubscribeMessage] = useState('')
 
   useEffect(() => {
     // Fetch real deals from API
@@ -19,6 +22,42 @@ export default function Home() {
     }
     loadDeals()
   }, [])
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email || !email.includes('@')) {
+      setSubscribeMessage('Please enter a valid email')
+      return
+    }
+
+    setSubscribeLoading(true)
+    setSubscribeMessage('')
+
+    try {
+      const response = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSubscribeMessage('🎉 Success! Check your email for your first deal alert.')
+        setEmail('')
+      } else {
+        setSubscribeMessage(data.error || 'Something went wrong. Please try again.')
+      }
+    } catch (error) {
+      setSubscribeMessage('Failed to subscribe. Please try again.')
+    } finally {
+      setSubscribeLoading(false)
+    }
+  }
+
+  const scrollToDeals = () => {
+    document.getElementById('deals')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   const filteredDeals = filter === 'all'
     ? deals
@@ -36,10 +75,16 @@ export default function Home() {
             AI-powered deal finder that saves you money on every purchase
           </p>
           <div className="flex justify-center gap-4">
-            <button className="bg-white text-green-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100">
+            <button
+              onClick={scrollToDeals}
+              className="bg-white text-green-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all"
+            >
               View All Deals
             </button>
-            <button className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-600">
+            <button
+              onClick={scrollToDeals}
+              className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-600 transition-all"
+            >
               Get Deal Alerts
             </button>
           </div>
@@ -117,15 +162,29 @@ export default function Home() {
           <p className="text-xl mb-8">
             Get instant notifications when we find amazing deals in your favorite categories
           </p>
-          <form className="flex gap-2 max-w-md mx-auto">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="flex-1 px-4 py-3 rounded-lg text-gray-900"
-            />
-            <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100">
-              Subscribe
-            </button>
+          <form onSubmit={handleSubscribe} className="max-w-md mx-auto">
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="flex-1 px-4 py-3 rounded-lg text-gray-900"
+                required
+              />
+              <button
+                type="submit"
+                disabled={subscribeLoading}
+                className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {subscribeLoading ? 'Subscribing...' : 'Subscribe'}
+              </button>
+            </div>
+            {subscribeMessage && (
+              <p className={`mt-4 text-sm ${subscribeMessage.includes('Success') ? 'text-green-100' : 'text-red-100'}`}>
+                {subscribeMessage}
+              </p>
+            )}
           </form>
           <p className="mt-4 text-sm opacity-80">
             Join 50,000+ smart shoppers. Unsubscribe anytime.
