@@ -17,10 +17,10 @@ export default function Footer() {
               Discover the best Amazon deals and save money on every purchase. Your smart shopping companion.
             </p>
             <div className="flex gap-4 mt-4">
-              <a href="https://twitter.com" className="text-gray-400 hover:text-white text-2xl">𝕏</a>
-              <a href="https://facebook.com" className="text-gray-400 hover:text-white text-2xl">📘</a>
-              <a href="https://instagram.com" className="text-gray-400 hover:text-white text-2xl">📸</a>
-              <a href="https://pinterest.com" className="text-gray-400 hover:text-white text-2xl">📌</a>
+              <a href="https://twitter.com/dealpulse" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-2xl">𝕏</a>
+              <a href="https://facebook.com/dealpulse" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-2xl">📘</a>
+              <a href="https://instagram.com/dealpulse" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-2xl">📸</a>
+              <a href="https://pinterest.com/dealpulse" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-2xl">📌</a>
             </div>
           </div>
 
@@ -40,12 +40,12 @@ export default function Footer() {
           <div>
             <h3 className="font-bold text-lg mb-4">Categories</h3>
             <ul className="space-y-2">
-              <li><Link href="/categories/electronics" className="text-gray-400 hover:text-white">Electronics</Link></li>
-              <li><Link href="/categories/home" className="text-gray-400 hover:text-white">Home & Kitchen</Link></li>
-              <li><Link href="/categories/fashion" className="text-gray-400 hover:text-white">Fashion</Link></li>
-              <li><Link href="/categories/sports" className="text-gray-400 hover:text-white">Sports & Fitness</Link></li>
-              <li><Link href="/categories/toys" className="text-gray-400 hover:text-white">Toys & Games</Link></li>
-              <li><Link href="/categories/beauty" className="text-gray-400 hover:text-white">Beauty</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Electronics</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Home & Kitchen</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Fashion</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Sports & Fitness</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Toys & Games</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Beauty</Link></li>
             </ul>
           </div>
 
