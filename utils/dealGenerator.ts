@@ -91,8 +91,8 @@ export function generateDeals() {
         reviews: Math.floor(Math.random() * 10000) + 100,
         image: '', // Would be actual Amazon image URL
         category,
-        // In production, replace YOUR-AMAZON-TAG with your actual Amazon Associates tag
-        amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(template)}&tag=YOUR-AMAZON-TAG`,
+        // Amazon Associates affiliate link with your tag
+        amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(template)}&tag=dealsplus077-20`,
         isLightningDeal: Math.random() > 0.7,
         stockStatus: Math.random() > 0.8 ? 'Only 3 left in stock!' : undefined,
       })

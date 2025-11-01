@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Header from '@/components/Header'
+import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
   title: 'DealPulse - Discover Today\'s Hottest Amazon Deals & Save Big',
@@ -25,31 +27,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gray-50">
-        <nav className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center">
-                <span className="text-2xl font-bold text-primary">💰 DealPulse</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <a href="#deals" className="text-gray-700 hover:text-primary">Hot Deals</a>
-                <a href="#trending" className="text-gray-700 hover:text-primary">Trending</a>
-                <button className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-green-600">
-                  Get Alerts
-                </button>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <Header />
         {children}
-        <footer className="bg-gray-900 text-white mt-16">
-          <div className="max-w-7xl mx-auto px-4 py-8 text-center">
-            <p className="text-sm text-gray-400">
-              DealPulse is a participant in the Amazon Services LLC Associates Program, an affiliate advertising program designed to provide a means for sites to earn advertising fees by advertising and linking to Amazon.com
-            </p>
-            <p className="mt-4 text-gray-500">© 2025 DealPulse. All rights reserved.</p>
-          </div>
-        </footer>
+        <Footer />
       </body>
     </html>
   )
