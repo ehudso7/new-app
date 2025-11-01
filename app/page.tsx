@@ -2,15 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import DealCard from '@/components/DealCard'
-import { generateDeals } from '@/utils/dealGenerator'
+import { fetchDeals } from '@/utils/fetchDeals'
 
 export default function Home() {
   const [deals, setDeals] = useState<any[]>([])
   const [filter, setFilter] = useState('all')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Generate deals on client side (in production, this would be from an API)
-    setDeals(generateDeals())
+    // Fetch real deals from API
+    async function loadDeals() {
+      setLoading(true)
+      const fetchedDeals = await fetchDeals('all', 24)
+      setDeals(fetchedDeals)
+      setLoading(false)
+    }
+    loadDeals()
   }, [])
 
   const filteredDeals = filter === 'all'
@@ -85,11 +92,22 @@ export default function Home() {
       {/* Deals Grid */}
       <section id="deals" className="max-w-7xl mx-auto px-4 py-8">
         <h2 className="text-3xl font-bold mb-8">🔥 Hot Deals Right Now</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredDeals.map((deal) => (
-            <DealCard key={deal.id} deal={deal} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-4 text-gray-600">Loading amazing deals...</p>
+          </div>
+        ) : filteredDeals.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-xl text-gray-600">No deals found. Check back soon!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredDeals.map((deal) => (
+              <DealCard key={deal.id} deal={deal} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* CTA Section */}
