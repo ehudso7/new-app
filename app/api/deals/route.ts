@@ -22,10 +22,34 @@ export async function GET(request: Request) {
       })
     }
 
+    // Validate all deals have images before returning
+    const validDeals = deals.filter((deal: any) => {
+      const hasValidImage = deal.image && 
+                           typeof deal.image === 'string' && 
+                           deal.image.trim() !== '' && 
+                           deal.image.startsWith('http')
+      if (!hasValidImage) {
+        console.warn(`Deal ${deal.id} missing valid image:`, deal.image)
+      }
+      return hasValidImage
+    })
+
+    if (validDeals.length === 0 && deals.length > 0) {
+      console.error('ERROR: All deals were filtered out due to missing images!')
+      // Force return curated deals as emergency fallback
+      const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+      const curatedDeals = getCuratedRealDeals(category, limit, partnerTag)
+      return NextResponse.json({
+        success: true,
+        count: curatedDeals.length,
+        deals: curatedDeals,
+      })
+    }
+
     return NextResponse.json({
       success: true,
-      count: deals.length,
-      deals: deals,
+      count: validDeals.length,
+      deals: validDeals,
     })
   } catch (error: any) {
     console.error('Error fetching deals:', error)
@@ -72,7 +96,9 @@ async function fetchRealDeals(category: string, limit: number) {
 
   // Always fallback to curated real Amazon deals with real images
   console.log('Using curated real Amazon deals')
-  return getCuratedRealDeals(category, limit, partnerTag)
+  const curatedDeals = getCuratedRealDeals(category, limit, partnerTag)
+  console.log(`Returning ${curatedDeals.length} curated deals, first deal image:`, curatedDeals[0]?.image)
+  return curatedDeals
 }
 
 async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
@@ -522,6 +548,9 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
+  // Ensure all deals have valid images
+  filtered = filtered.filter(deal => deal.image && deal.image.trim() !== '' && deal.image.startsWith('http'))
+
   // If we don't have enough deals, duplicate and shuffle to fill the limit
   if (filtered.length < limit) {
     const copiesNeeded = Math.ceil(limit / filtered.length)
@@ -536,7 +565,15 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
   }
 
   // Return unique deals up to the limit
-  return filtered.slice(0, limit)
+  const result = filtered.slice(0, limit)
+  
+  // Log for debugging
+  console.log(`getCuratedRealDeals: category=${category}, limit=${limit}, returning ${result.length} deals`)
+  if (result.length > 0) {
+    console.log(`First deal: ${result[0].title}, image: ${result[0].image}`)
+  }
+  
+  return result
 }
 
 function detectCategory(title: string): string {
