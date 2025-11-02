@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -31,7 +34,25 @@ async function fetchRealDeals(category: string, limit: number) {
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      const rapidDeals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+
+      if (rapidDeals.length > 0) {
+        // Optionally top up with curated deals if RapidAPI returned fewer than requested
+        if (rapidDeals.length < limit) {
+          const curatedFallback = getCuratedRealDeals(category, limit, partnerTag)
+          const supplementalDeals = curatedFallback.filter((deal) =>
+            !rapidDeals.some((rapidDeal) =>
+              (rapidDeal.asin && rapidDeal.asin === deal.asin) || rapidDeal.title === deal.title
+            )
+          )
+
+          return [...rapidDeals, ...supplementalDeals].slice(0, limit)
+        }
+
+        return rapidDeals.slice(0, limit)
+      }
+
+      console.warn('RapidAPI returned no usable deals - falling back to curated dataset')
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
     }
@@ -53,6 +74,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       'X-RapidAPI-Key': apiKey,
       'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com',
     },
+    cache: 'no-store',
   })
 
   if (!response.ok) {
@@ -60,29 +82,74 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   }
 
   const data = await response.json()
+  const products = Array.isArray(data.data?.products)
+    ? data.data.products
+    : Array.isArray(data.data)
+      ? data.data
+      : []
 
-  // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  const mappedDeals = products
+    .slice(0, limit * 2) // over-fetch to increase chances of valid deals
+    .map((item: any) => {
+      const price = normalizePrice(
+        item.product_price,
+        item.app_sale_price,
+        item.app_sale_price_value,
+        item.current_price,
+        item.deal_price
+      )
 
-    return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
-      originalPrice: originalPrice,
-      currentPrice: price,
-      discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
-      isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
-    }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+      const originalPrice =
+        normalizePrice(
+          item.product_original_price,
+          item.original_price,
+          item.app_sale_price_original,
+          item.before_price,
+          item.list_price
+        ) || (price ? Math.round(price * 1.4 * 100) / 100 : null)
+
+      if (!price || price <= 0) {
+        return null
+      }
+
+      const chosenOriginal = originalPrice && originalPrice > price ? originalPrice : price
+      const discount = calculateDiscount(chosenOriginal, price)
+
+      const image = selectProductImage(item)
+
+      if (!image) {
+        return null
+      }
+
+      const asin = item.asin || extractAsin(item.product_url)
+      const title = (item.product_title || item.title || '').trim()
+
+      if (!title) {
+        return null
+      }
+
+      return {
+        id: asin || `deal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        originalPrice: chosenOriginal,
+        currentPrice: price,
+        discount,
+        rating: normalizeRating(item.product_star_rating || item.rating),
+        reviews: normalizeReviewCount(item.product_num_ratings || item.reviews_count || item.total_reviews),
+        image,
+        category: detectCategory(title),
+        amazonUrl: buildAmazonUrl(item.product_url, asin, tag),
+        asin,
+        isLightningDeal: Boolean(item.is_deal_of_the_day || item.is_lightning_deal || discount >= 50),
+        stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      }
+    })
+    .filter(Boolean) as any[]
+
+  // Ensure deals meet minimum visual/discount requirements
+  return mappedDeals
+    .filter((deal) => deal.discount >= 10 && isLikelyImageUrl(deal.image))
+    .slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -290,12 +357,22 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
+  if (filtered.length === 0) {
+    filtered = allDeals
   }
 
-  return filtered.slice(0, limit).map((deal, index) => ({
+  const results: typeof allDeals = []
+  while (results.length < limit) {
+    results.push(...filtered)
+    if (filtered.length === 0) {
+      break
+    }
+    if (results.length >= limit) {
+      break
+    }
+  }
+
+  return results.slice(0, limit).map((deal, index) => ({
     ...deal,
     id: `${deal.id}-${index}`,
   }))
@@ -310,4 +387,134 @@ function detectCategory(title: string): string {
   if (lower.match(/toy|game|puzzle|kids|children|play|lego|building/)) return 'toys'
   if (lower.match(/makeup|beauty|cosmetic|skin|hair|nail|cream|serum/)) return 'beauty'
   return 'electronics'
+}
+
+function normalizePrice(...candidates: Array<string | number | undefined | null>): number | null {
+  for (const value of candidates) {
+    if (value === undefined || value === null) continue
+
+    if (typeof value === 'number' && isFinite(value)) {
+      if (value > 0) return roundPrice(value)
+      continue
+    }
+
+    if (typeof value === 'string') {
+      const cleaned = Number(value.replace(/[^0-9.,]/g, '').replace(/,/g, ''))
+      if (!isNaN(cleaned) && cleaned > 0) {
+        return roundPrice(cleaned)
+      }
+    }
+  }
+
+  return null
+}
+
+function roundPrice(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function calculateDiscount(original: number, current: number) {
+  if (!original || original <= current) {
+    return Math.max(0, Math.round(((original || current) - current) / (original || current) * 100))
+  }
+
+  return Math.min(95, Math.round(((original - current) / original) * 100))
+}
+
+function selectProductImage(item: any): string | null {
+  const imageCandidates = [
+    item.product_photo,
+    item.product_main_image_url,
+    item.product_main_image,
+    item.product_image,
+    item.product_image_url,
+    item.product_main_image_hi_res,
+    Array.isArray(item.product_photos) ? item.product_photos[0] : null,
+    Array.isArray(item.product_images) ? item.product_images[0] : null,
+    Array.isArray(item.images) ? item.images[0] : null,
+  ]
+
+  for (const candidate of imageCandidates) {
+    if (typeof candidate === 'string' && isLikelyImageUrl(candidate)) {
+      return candidate
+    }
+    if (candidate && typeof candidate === 'object') {
+      const url = candidate.url || candidate.src || candidate.image || candidate.large
+      if (typeof url === 'string' && isLikelyImageUrl(url)) {
+        return url
+      }
+    }
+  }
+
+  return null
+}
+
+function isLikelyImageUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    return /\.(jpe?g|png|webp|gif)$/i.test(parsed.pathname)
+  } catch (error) {
+    return false
+  }
+}
+
+function normalizeRating(value: any): number {
+  if (typeof value === 'number') {
+    return Math.round(Math.max(0, Math.min(5, value)) * 10) / 10
+  }
+
+  if (typeof value === 'string') {
+    const cleaned = parseFloat(value.replace(/[^0-9.]/g, ''))
+    if (!isNaN(cleaned)) {
+      return Math.round(Math.max(0, Math.min(5, cleaned)) * 10) / 10
+    }
+  }
+
+  return 4.5
+}
+
+function normalizeReviewCount(value: any): number {
+  if (typeof value === 'number' && value >= 0) {
+    return Math.round(value)
+  }
+
+  if (typeof value === 'string') {
+    const cleaned = parseInt(value.replace(/[^0-9]/g, ''), 10)
+    if (!isNaN(cleaned)) {
+      return cleaned
+    }
+  }
+
+  return 100
+}
+
+function buildAmazonUrl(productUrl: string | undefined, asin: string | undefined, tag: string) {
+  if (productUrl && productUrl.includes('amazon')) {
+    try {
+      const url = new URL(productUrl)
+      if (tag) {
+        url.searchParams.set('tag', tag)
+      }
+      return url.toString()
+    } catch (error) {
+      // fall back to ASIN-based URL below
+    }
+  }
+
+  if (asin) {
+    return `https://www.amazon.com/dp/${asin}?tag=${tag}`
+  }
+
+  return 'https://www.amazon.com'
+}
+
+function extractAsin(url: string | undefined): string | undefined {
+  if (!url) return undefined
+
+  const asinMatch = url.match(/\/([A-Z0-9]{10})(?:[/?]|$)/i)
+  if (asinMatch) {
+    return asinMatch[1].toUpperCase()
+  }
+
+  return undefined
 }
