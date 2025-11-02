@@ -28,17 +28,25 @@ async function fetchRealDeals(category: string, limit: number) {
   const rapidApiKey = process.env.RAPIDAPI_KEY
   const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
 
+  let deals: any[] = []
+
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      deals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
+      deals = getCuratedRealDeals(category, limit, partnerTag)
     }
+  } else {
+    // Fallback to curated real Amazon deals with real images
+    deals = getCuratedRealDeals(category, limit, partnerTag)
   }
 
-  // Fallback to curated real Amazon deals with real images
-  return getCuratedRealDeals(category, limit, partnerTag)
+  // Audit images server-side
+  auditImages(deals)
+
+  return deals
 }
 
 async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
@@ -75,14 +83,15 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       discount: discount,
       rating: parseFloat(item.product_star_rating || '4.5'),
       reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
+      image: item.product_photo || '', // Keep for backward compatibility
+      imageUrl: item.product_photo || '', // Use imageUrl as primary field
       category: detectCategory(item.product_title),
       amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
       asin: item.asin,
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: any) => (deal.imageUrl || deal.image) && deal.discount >= 20)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -298,6 +307,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
   return filtered.slice(0, limit).map((deal, index) => ({
     ...deal,
     id: `${deal.id}-${index}`,
+    imageUrl: deal.image, // Ensure imageUrl is set from image field
   }))
 }
 
@@ -310,4 +320,12 @@ function detectCategory(title: string): string {
   if (lower.match(/toy|game|puzzle|kids|children|play|lego|building/)) return 'toys'
   if (lower.match(/makeup|beauty|cosmetic|skin|hair|nail|cream|serum/)) return 'beauty'
   return 'electronics'
+}
+
+// Server-side audit helper to log items missing images
+function auditImages(products: { asin: string; title: string; imageUrl?: string; image?: string }[]) {
+  const bad = products.filter(p => !p.imageUrl && !p.image)
+  if (bad.length) {
+    console.warn(`[images] missing for ${bad.length} items:`, bad.slice(0,10).map(b => `${b.asin} ${b.title}`))
+  }
 }

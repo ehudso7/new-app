@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 
 interface Deal {
   id: string
@@ -12,11 +11,24 @@ interface Deal {
   rating: number
   reviews: number
   image: string
+  imageUrl?: string // Support both image and imageUrl for backward compatibility
   category: string
   amazonUrl: string
   isLightningDeal?: boolean
   stockStatus?: string
   asin?: string
+}
+
+// Helper function to safely convert Amazon image URLs to proxy URLs
+function safeImageUrl(url?: string): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (!/amazon\.com$|m\.media-amazon\.com$|ssl-images-amazon\.com$/.test(parsed.hostname)) {
+      return null
+    }
+    return `/api/img?src=${encodeURIComponent(parsed.toString())}`
+  } catch { return null }
 }
 
 interface DealCardProps {
@@ -195,25 +207,36 @@ export default function DealCard({ deal }: DealCardProps) {
           </div>
         )}
 
-        {/* Real Product Image */}
-        {deal.image && !imageError ? (
-          <Image
-            src={deal.image}
-            alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
-            onClick={handleClick}
-          >
-            {getCategoryEmoji(deal.category)}
-          </div>
-        )}
+        {/* Real Product Image via Proxy */}
+        {(() => {
+          const imageUrl = deal.imageUrl || deal.image
+          const imgSrc = safeImageUrl(imageUrl)
+          
+          if (imgSrc && !imageError) {
+            return (
+              <a href={deal.amazonUrl} target="_blank" rel="nofollow noopener sponsored" onClick={(e) => { e.preventDefault(); handleClick(); }}>
+                <img
+                  src={imgSrc}
+                  alt={deal.title}
+                  className="mx-auto h-full w-full object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
+                  loading="lazy"
+                  width={320}
+                  height={160}
+                  onError={() => setImageError(true)}
+                />
+              </a>
+            )
+          }
+          
+          return (
+            <div
+              className="h-48 grid place-items-center text-sm text-gray-500 cursor-pointer"
+              onClick={handleClick}
+            >
+              Image unavailable
+            </div>
+          )
+        })()}
       </div>
 
       <div className="p-4">
@@ -290,14 +313,3 @@ export default function DealCard({ deal }: DealCardProps) {
   )
 }
 
-function getCategoryEmoji(category: string): string {
-  const emojis: { [key: string]: string } = {
-    electronics: '📱',
-    home: '🏠',
-    fashion: '👔',
-    sports: '⚽',
-    toys: '🧸',
-    beauty: '💄',
-  }
-  return emojis[category] || '🎁'
-}
