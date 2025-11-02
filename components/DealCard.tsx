@@ -26,6 +26,7 @@ interface DealCardProps {
 export default function DealCard({ deal }: DealCardProps) {
   const [isSaved, setIsSaved] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
   const [timeLeft, setTimeLeft] = useState(0)
   const [viewerCount, setViewerCount] = useState(0)
   const savings = deal.originalPrice - deal.currentPrice
@@ -36,6 +37,14 @@ export default function DealCard({ deal }: DealCardProps) {
     const isAlreadySaved = saved.some((d: any) => d.id === deal.id)
     setIsSaved(isAlreadySaved)
   }, [deal.id])
+
+  // Reset image loading state when deal changes
+  useEffect(() => {
+    if (deal.image) {
+      setImageError(false)
+      setImageLoading(true)
+    }
+  }, [deal.image, deal.id])
 
   // Lightning deal countdown timer (for demo: random time between 1-6 hours)
   useEffect(() => {
@@ -197,18 +206,29 @@ export default function DealCard({ deal }: DealCardProps) {
 
         {/* Real Product Image */}
         {deal.image && !imageError ? (
-          <Image
-            src={deal.image}
-            alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
-          />
+          <>
+            {imageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            )}
+            <Image
+              src={deal.image}
+              alt={deal.title}
+              fill
+              className={`object-contain p-4 cursor-pointer hover:scale-105 transition-transform ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+              onClick={handleClick}
+              onError={() => {
+                setImageError(true)
+                setImageLoading(false)
+              }}
+              onLoad={() => setImageLoading(false)}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          </>
         ) : (
           <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
+            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer bg-gray-100"
             onClick={handleClick}
           >
             {getCategoryEmoji(deal.category)}
