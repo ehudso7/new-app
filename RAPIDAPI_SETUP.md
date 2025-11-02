@@ -130,10 +130,43 @@ Look for products with current timestamps and different items each time you refr
 - Check browser console for errors
 
 ### "RapidAPI not working"
-1. Verify API key is correct (no extra spaces)
-2. Check you subscribed to free tier
-3. Look at terminal for error messages
-4. Test with curl command above
+
+**First, run the diagnostic endpoint:**
+```bash
+# Visit this URL in your browser or use curl:
+curl http://localhost:3000/api/deals/test
+```
+
+This will show you:
+- ✅ Whether RapidAPI is configured
+- ✅ If your API key is valid
+- ✅ What the API response structure looks like
+- ✅ Specific error messages and recommendations
+
+**Manual troubleshooting:**
+1. **Check your API key:**
+   - Verify `RAPIDAPI_KEY` is in `.env.local` (local) or Vercel environment variables (production)
+   - Make sure there are no extra spaces or quotes
+   - Key should be 40+ characters
+
+2. **Check server logs:**
+   - Look for `[RapidAPI]` messages in your terminal (local) or Vercel logs (production)
+   - Logs now show detailed error messages:
+     - `Authentication failed` = Wrong API key
+     - `Rate limit exceeded` = Need to upgrade plan
+     - `API server error` = Endpoint may be down
+     - `Invalid response structure` = API format changed
+
+3. **Test the API directly:**
+   ```bash
+   curl http://localhost:3000/api/deals?category=electronics&limit=5
+   ```
+
+4. **Verify you subscribed to the API:**
+   - Go to https://rapidapi.com/hub
+   - Search for "Real-Time Amazon Data"
+   - Make sure you clicked "Subscribe" and selected a plan
+   - The free tier works fine for testing
 
 ### "Rate limit exceeded"
 - Free tier: 500/day is plenty for starting out
