@@ -29,6 +29,8 @@ export default function DealCard({ deal }: DealCardProps) {
   const [timeLeft, setTimeLeft] = useState(0)
   const [viewerCount, setViewerCount] = useState(0)
   const savings = deal.originalPrice - deal.currentPrice
+  const resolvedAsin = (deal.asin || extractAsinFromUrl(deal.amazonUrl))?.toUpperCase()
+  const amazonLink = resolvedAsin ? `/api/out/amazon/${resolvedAsin}` : deal.amazonUrl || 'https://www.amazon.com/'
 
   // Check if deal is already saved on mount
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function DealCard({ deal }: DealCardProps) {
     }
 
     // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    window.open(amazonLink, '_blank', 'noopener,noreferrer')
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -140,7 +142,7 @@ export default function DealCard({ deal }: DealCardProps) {
     const shareData = {
       title: deal.title,
       text: `${deal.discount}% off! Was $${deal.originalPrice}, now $${deal.currentPrice}`,
-      url: deal.amazonUrl,
+      url: amazonLink,
     }
 
     try {
@@ -149,7 +151,7 @@ export default function DealCard({ deal }: DealCardProps) {
         await navigator.share(shareData)
       } else {
         // Fallback: Copy to clipboard
-        await navigator.clipboard.writeText(deal.amazonUrl)
+        await navigator.clipboard.writeText(amazonLink)
         alert('Link copied to clipboard!')
       }
 
@@ -300,4 +302,10 @@ function getCategoryEmoji(category: string): string {
     beauty: '💄',
   }
   return emojis[category] || '🎁'
+}
+
+function extractAsinFromUrl(url: string): string | null {
+  if (!url) return null
+  const match = url.match(/\/([A-Z0-9]{10})(?=[/?]|$)/i)
+  return match ? match[1].toUpperCase() : null
 }
