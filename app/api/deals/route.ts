@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
 async function fetchRealDeals(category: string, limit: number) {
   const rapidApiKey = process.env.RAPIDAPI_KEY
-  const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+  const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG?.trim()
 
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
@@ -41,7 +41,7 @@ async function fetchRealDeals(category: string, limit: number) {
   return getCuratedRealDeals(category, limit, partnerTag)
 }
 
-async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
+async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag?: string) {
   const searchTerm = category === 'all' ? 'deals' : category
 
   // Using Amazon Data Scraper API from RapidAPI
@@ -62,7 +62,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   const data = await response.json()
 
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  const transformedDeals = (data.data?.products || []).slice(0, limit * 2).map((item: any) => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
@@ -77,16 +77,24 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       reviews: parseInt(item.product_num_ratings || '100'),
       image: item.product_photo || '',
       category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
+      amazonUrl: buildAmazonLink(item.asin, tag),
       asin: item.asin,
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  })
+
+  const validDeals = transformedDeals.filter((deal: any) => deal.image && deal.discount >= 15 && deal.currentPrice > 0)
+
+  if (validDeals.length === 0) {
+    return getCuratedRealDeals(category, limit, tag)
+  }
+
+  return validDeals.slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data
-function getCuratedRealDeals(category: string, limit: number, tag: string) {
+function getCuratedRealDeals(category: string, limit: number, tag?: string) {
   const allDeals = [
     // Electronics - Real Amazon bestsellers
     {
@@ -99,7 +107,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 85234,
       image: 'https://m.media-amazon.com/images/I/61f1YfTkTDL._AC_SL1500_.jpg',
       category: 'electronics',
-      amazonUrl: `https://www.amazon.com/dp/B0BN3K4C7K?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B0BN3K4C7K', tag),
       asin: 'B0BN3K4C7K',
       isLightningDeal: false,
       stockStatus: 'Prime Eligible',
@@ -114,7 +122,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 45123,
       image: 'https://m.media-amazon.com/images/I/51TjJOTfslL._AC_SL1000_.jpg',
       category: 'electronics',
-      amazonUrl: `https://www.amazon.com/dp/B0CHXDYX39?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B0CHXDYX39', tag),
       asin: 'B0CHXDYX39',
       isLightningDeal: true,
       stockStatus: 'Prime Eligible',
@@ -129,7 +137,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 12847,
       image: 'https://m.media-amazon.com/images/I/61R7JYKtASL._AC_SL1500_.jpg',
       category: 'electronics',
-      amazonUrl: `https://www.amazon.com/dp/B09B8RXJQ4?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B09B8RXJQ4', tag),
       asin: 'B09B8RXJQ4',
       isLightningDeal: false,
     },
@@ -143,7 +151,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 8934,
       image: 'https://m.media-amazon.com/images/I/61DfTSu1reL._AC_SL1500_.jpg',
       category: 'electronics',
-      amazonUrl: `https://www.amazon.com/dp/B0BXRY4B7Y?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B0BXRY4B7Y', tag),
       asin: 'B0BXRY4B7Y',
       isLightningDeal: false,
     },
@@ -159,7 +167,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 5234,
       image: 'https://m.media-amazon.com/images/I/61uXWal-QKL._AC_SL1500_.jpg',
       category: 'home',
-      amazonUrl: `https://www.amazon.com/dp/B09W2S2MX5?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B09W2S2MX5', tag),
       asin: 'B09W2S2MX5',
       isLightningDeal: true,
     },
@@ -173,7 +181,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 72451,
       image: 'https://m.media-amazon.com/images/I/71eVcWFxwNL._AC_SL1500_.jpg',
       category: 'home',
-      amazonUrl: `https://www.amazon.com/dp/B08F54PQMQ?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B08F54PQMQ', tag),
       asin: 'B08F54PQMQ',
       isLightningDeal: true,
     },
@@ -187,7 +195,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 34567,
       image: 'https://m.media-amazon.com/images/I/61gWFSe1xaL._AC_SL1500_.jpg',
       category: 'home',
-      amazonUrl: `https://www.amazon.com/dp/B09NCYBRFV?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B09NCYBRFV', tag),
       asin: 'B09NCYBRFV',
       isLightningDeal: false,
     },
@@ -203,7 +211,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 123456,
       image: 'https://m.media-amazon.com/images/I/81CRMMg7RQL._AC_SL1500_.jpg',
       category: 'fashion',
-      amazonUrl: `https://www.amazon.com/dp/B07P1SFML6?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B07P1SFML6', tag),
       asin: 'B07P1SFML6',
       isLightningDeal: false,
     },
@@ -217,7 +225,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 28934,
       image: 'https://m.media-amazon.com/images/I/71D0i8by+PL._AC_SL1500_.jpg',
       category: 'fashion',
-      amazonUrl: `https://www.amazon.com/dp/B07PXGQC1Q?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B07PXGQC1Q', tag),
       asin: 'B07PXGQC1Q',
       isLightningDeal: false,
     },
@@ -233,7 +241,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 67890,
       image: 'https://m.media-amazon.com/images/I/81jBzD4KFPL._AC_SL1500_.jpg',
       category: 'sports',
-      amazonUrl: `https://www.amazon.com/dp/B01AVDVHTI?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B01AVDVHTI', tag),
       asin: 'B01AVDVHTI',
       isLightningDeal: false,
     },
@@ -247,7 +255,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 15678,
       image: 'https://m.media-amazon.com/images/I/71M-W9hs-vL._AC_SL1500_.jpg',
       category: 'sports',
-      amazonUrl: `https://www.amazon.com/dp/B08R68K88K?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B08R68K88K', tag),
       asin: 'B08R68K88K',
       isLightningDeal: false,
     },
@@ -263,7 +271,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 45632,
       image: 'https://m.media-amazon.com/images/I/81WjJgZ8LnL._AC_SL1500_.jpg',
       category: 'toys',
-      amazonUrl: `https://www.amazon.com/dp/B08XWKG6V8?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B08XWKG6V8', tag),
       asin: 'B08XWKG6V8',
       isLightningDeal: false,
     },
@@ -279,7 +287,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       reviews: 98745,
       image: 'https://m.media-amazon.com/images/I/71J6Y9-n5UL._SL1500_.jpg',
       category: 'beauty',
-      amazonUrl: `https://www.amazon.com/dp/B0C1GJQKNC?tag=${tag}`,
+      amazonUrl: buildAmazonLink('B0C1GJQKNC', tag),
       asin: 'B0C1GJQKNC',
       isLightningDeal: false,
     },
@@ -310,4 +318,21 @@ function detectCategory(title: string): string {
   if (lower.match(/toy|game|puzzle|kids|children|play|lego|building/)) return 'toys'
   if (lower.match(/makeup|beauty|cosmetic|skin|hair|nail|cream|serum/)) return 'beauty'
   return 'electronics'
+}
+
+function buildAmazonLink(asin: string, tag?: string) {
+  const params = new URLSearchParams({
+    linkCode: 'll1',
+    language: 'en_US',
+    ref_: 'as_li_ss_tl',
+  })
+
+  if (tag) {
+    params.set('tag', tag)
+  } else {
+    params.delete('tag')
+  }
+
+  const queryString = params.toString()
+  return queryString ? `https://www.amazon.com/dp/${asin}?${queryString}` : `https://www.amazon.com/dp/${asin}`
 }

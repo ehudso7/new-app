@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 interface Deal {
   id: string
@@ -83,25 +84,31 @@ export default function DealCard({ deal }: DealCardProps) {
     return `${hours}h ${minutes}m ${seconds}s`
   }
 
-  const handleClick = async () => {
-    // Track click event for analytics
+  const trackDealClick = () => {
+    const payload = {
+      event: 'deal_click',
+      dealId: deal.id,
+      category: deal.category,
+      price: deal.currentPrice,
+    }
+
     try {
-      await fetch('/api/analytics/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: 'deal_click',
-          dealId: deal.id,
-          category: deal.category,
-          price: deal.currentPrice,
-        }),
-      })
+      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' })
+        navigator.sendBeacon('/api/analytics/track', blob)
+      } else {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true,
+        }).catch((error) => {
+          console.error('Analytics error:', error)
+        })
+      }
     } catch (error) {
       console.error('Analytics error:', error)
     }
-
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -173,56 +180,67 @@ export default function DealCard({ deal }: DealCardProps) {
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow relative">
       {/* Viewer count - viral social proof */}
-      <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs font-semibold z-20 flex items-center gap-1">
+      <div className="pointer-events-none absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs font-semibold z-20 flex items-center gap-1">
         <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
         {viewerCount} viewing
       </div>
 
       <div className="relative h-48 bg-gray-100">
         {deal.isLightningDeal && (
-          <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold z-10 animate-pulse">
+          <div className="pointer-events-none absolute top-2 left-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold z-10 animate-pulse">
             ⚡ Lightning Deal
           </div>
         )}
-        <div className="absolute top-2 right-2 bg-primary text-white px-3 py-1 rounded-full text-sm font-bold z-10">
+        <div className="pointer-events-none absolute top-2 right-2 bg-primary text-white px-3 py-1 rounded-full text-sm font-bold z-10">
           -{deal.discount}%
         </div>
 
         {/* Countdown timer for lightning deals */}
         {deal.isLightningDeal && timeLeft > 0 && (
-          <div className="absolute bottom-2 left-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold text-center z-10">
+          <div className="pointer-events-none absolute bottom-2 left-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold text-center z-10">
             ⏰ Ends in: {formatTimeLeft(timeLeft)}
           </div>
         )}
 
-        {/* Real Product Image */}
-        {deal.image && !imageError ? (
-          <Image
-            src={deal.image}
-            alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
-            onClick={handleClick}
-          >
-            {getCategoryEmoji(deal.category)}
-          </div>
-        )}
+        <Link
+          href={deal.amazonUrl}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          prefetch={false}
+          onClick={trackDealClick}
+          className="absolute inset-0"
+        >
+          {deal.image && !imageError ? (
+            <Image
+              src={deal.image}
+              alt={deal.title}
+              fill
+              className="object-contain p-4 hover:scale-105 transition-transform"
+              onError={() => setImageError(true)}
+              unoptimized
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-6xl">
+              {getCategoryEmoji(deal.category)}
+            </div>
+          )}
+        </Link>
       </div>
 
       <div className="p-4">
-        <h3
-          className="font-semibold text-gray-800 line-clamp-2 h-12 mb-2 cursor-pointer hover:text-primary"
-          onClick={handleClick}
+        <Link
+          href={deal.amazonUrl}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          prefetch={false}
+          onClick={trackDealClick}
+          className="block"
         >
-          {deal.title}
-        </h3>
+          <h3 className="font-semibold text-gray-800 line-clamp-2 h-12 mb-2 hover:text-primary">
+            {deal.title}
+          </h3>
+        </Link>
 
         <div className="flex items-center gap-2 mb-3">
           <div className="flex items-center">
@@ -260,12 +278,16 @@ export default function DealCard({ deal }: DealCardProps) {
           </div>
         )}
 
-        <button
-          onClick={handleClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
+        <Link
+          href={deal.amazonUrl}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          prefetch={false}
+          onClick={trackDealClick}
+          className="w-full inline-flex justify-center bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
         >
           View on Amazon →
-        </button>
+        </Link>
 
         <div className="mt-2 flex gap-2">
           <button
