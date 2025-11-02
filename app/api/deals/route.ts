@@ -66,23 +66,31 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+    const asin = item.asin || item.product_id
+
+    // Ensure we have a valid image URL
+    let imageUrl = item.product_photo || item.product_main_image_url || ''
+    // If image URL is relative, make it absolute
+    if (imageUrl && !imageUrl.startsWith('http')) {
+      imageUrl = `https://${imageUrl}`
+    }
 
     return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
+      id: asin || `deal-${Date.now()}-${Math.random()}`,
       title: item.product_title || 'Amazon Product',
       originalPrice: originalPrice,
       currentPrice: price,
       discount: discount,
       rating: parseFloat(item.product_star_rating || '4.5'),
       reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
+      image: imageUrl,
       category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
+      amazonUrl: asin ? `https://www.amazon.com/dp/${asin}?tag=${tag}` : `https://www.amazon.com/s?k=${encodeURIComponent(item.product_title || '')}&tag=${tag}`,
+      asin: asin,
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: any) => deal.image && deal.discount >= 20 && deal.amazonUrl)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -285,20 +293,15 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     },
   ]
 
-  // Filter by category
-  let filtered = category === 'all'
+  // Filter by category and ensure all deals have images and URLs
+  let filtered = (category === 'all'
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
+  ).filter(deal => deal.image && deal.amazonUrl)
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
-  }
-
-  return filtered.slice(0, limit).map((deal, index) => ({
-    ...deal,
-    id: `${deal.id}-${index}`,
-  }))
+  // If we have fewer deals than requested, just return what we have
+  // Don't duplicate deals to avoid wrong product links
+  return filtered.slice(0, limit)
 }
 
 function detectCategory(title: string): string {

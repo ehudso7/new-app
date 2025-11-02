@@ -203,15 +203,21 @@ export default function DealCard({ deal }: DealCardProps) {
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
-            onError={() => setImageError(true)}
+            onError={() => {
+              console.error('Image failed to load:', deal.image)
+              setImageError(true)
+            }}
             unoptimized
           />
         ) : (
           <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
+            className="w-full h-full flex items-center justify-center bg-gray-200 cursor-pointer"
             onClick={handleClick}
           >
-            {getCategoryEmoji(deal.category)}
+            <div className="text-center p-4">
+              <div className="text-4xl mb-2">{getCategoryEmoji(deal.category)}</div>
+              <div className="text-xs text-gray-500">Image not available</div>
+            </div>
           </div>
         )}
       </div>
