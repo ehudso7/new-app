@@ -196,22 +196,26 @@ export default function DealCard({ deal }: DealCardProps) {
         )}
 
         {/* Real Product Image */}
-        {deal.image && !imageError ? (
+        {deal.image && deal.image.trim() !== '' && !imageError ? (
           <Image
             src={deal.image}
             alt={deal.title}
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
-            onError={() => setImageError(true)}
+            onError={() => {
+              console.error('Image failed to load:', deal.image)
+              setImageError(true)
+            }}
             unoptimized
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
           />
         ) : (
           <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
+            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer bg-gray-100"
             onClick={handleClick}
           >
-            {getCategoryEmoji(deal.category)}
+            {deal.image ? getCategoryEmoji(deal.category) : '🖼️'}
           </div>
         )}
       </div>

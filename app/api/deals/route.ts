@@ -63,12 +63,15 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
 
   // Transform RapidAPI response
   return (data.data?.products || []).slice(0, limit).map((item: any) => {
+    const asin = item.asin
+    if (!asin) return null // Skip items without ASIN - need it for URL
+    
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
 
     return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
+      id: asin, // Use ASIN as ID to ensure consistency
       title: item.product_title || 'Amazon Product',
       originalPrice: originalPrice,
       currentPrice: price,
@@ -77,12 +80,12 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       reviews: parseInt(item.product_num_ratings || '100'),
       image: item.product_photo || '',
       category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
+      amazonUrl: `https://www.amazon.com/dp/${asin}?tag=${tag}`, // Always use ASIN for URL
+      asin: asin,
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: any) => deal !== null && deal.image && deal.image.trim() !== '' && deal.discount >= 20)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -290,15 +293,9 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
-  }
-
-  return filtered.slice(0, limit).map((deal, index) => ({
-    ...deal,
-    id: `${deal.id}-${index}`,
-  }))
+  // Return deals up to the limit - don't duplicate to avoid wrong links
+  // Each deal keeps its original ID and amazonUrl which are correctly paired
+  return filtered.slice(0, limit)
 }
 
 function detectCategory(title: string): string {
