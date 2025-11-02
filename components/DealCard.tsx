@@ -13,7 +13,7 @@ interface Deal {
   reviews: number
   image: string
   category: string
-  amazonUrl: string
+  amazonUrl?: string
   isLightningDeal?: boolean
   stockStatus?: string
   asin?: string
@@ -29,6 +29,8 @@ export default function DealCard({ deal }: DealCardProps) {
   const [timeLeft, setTimeLeft] = useState(0)
   const [viewerCount, setViewerCount] = useState(0)
   const savings = deal.originalPrice - deal.currentPrice
+  const outboundUrl = deal.asin ? `/api/out/amazon/${deal.asin}` : undefined
+  const redirectUrl = outboundUrl || deal.amazonUrl || ''
 
   // Check if deal is already saved on mount
   useEffect(() => {
@@ -101,7 +103,12 @@ export default function DealCard({ deal }: DealCardProps) {
     }
 
     // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    if (!redirectUrl) {
+      console.warn('Missing outbound URL for deal', deal)
+      return
+    }
+
+    window.open(redirectUrl, '_blank', 'noopener,noreferrer')
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -140,7 +147,7 @@ export default function DealCard({ deal }: DealCardProps) {
     const shareData = {
       title: deal.title,
       text: `${deal.discount}% off! Was $${deal.originalPrice}, now $${deal.currentPrice}`,
-      url: deal.amazonUrl,
+      url: redirectUrl || window.location.href,
     }
 
     try {
@@ -149,7 +156,12 @@ export default function DealCard({ deal }: DealCardProps) {
         await navigator.share(shareData)
       } else {
         // Fallback: Copy to clipboard
-        await navigator.clipboard.writeText(deal.amazonUrl)
+        if (!redirectUrl) {
+          console.warn('Missing outbound URL for share', deal)
+          return
+        }
+
+        await navigator.clipboard.writeText(redirectUrl)
         alert('Link copied to clipboard!')
       }
 
