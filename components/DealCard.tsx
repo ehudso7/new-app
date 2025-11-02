@@ -83,25 +83,46 @@ export default function DealCard({ deal }: DealCardProps) {
     return `${hours}h ${minutes}m ${seconds}s`
   }
 
-  const handleClick = async () => {
-    // Track click event for analytics
+  useEffect(() => {
+    setImageError(false)
+  }, [deal.image])
+
+  const trackDealClick = () => {
+    const payload = {
+      event: 'deal_click',
+      dealId: deal.id,
+      category: deal.category,
+      price: deal.currentPrice,
+    }
+
     try {
-      await fetch('/api/analytics/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: 'deal_click',
-          dealId: deal.id,
-          category: deal.category,
-          price: deal.currentPrice,
-        }),
-      })
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' })
+        navigator.sendBeacon('/api/analytics/track', blob)
+      } else {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => null)
+      }
     } catch (error) {
       console.error('Analytics error:', error)
     }
+  }
 
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+  const openAmazonLink = () => {
+    if (!deal.amazonUrl) return
+    const opened = window.open(deal.amazonUrl, '_blank', 'noopener,noreferrer')
+    if (!opened) {
+      window.location.href = deal.amazonUrl
+    }
+  }
+
+  const handleAmazonClick = (event?: React.MouseEvent) => {
+    event?.preventDefault()
+    openAmazonLink()
+    trackDealClick()
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -202,14 +223,14 @@ export default function DealCard({ deal }: DealCardProps) {
             alt={deal.title}
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleClick}
+            onClick={handleAmazonClick}
             onError={() => setImageError(true)}
             unoptimized
           />
         ) : (
           <div
             className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
-            onClick={handleClick}
+            onClick={handleAmazonClick}
           >
             {getCategoryEmoji(deal.category)}
           </div>
@@ -219,7 +240,7 @@ export default function DealCard({ deal }: DealCardProps) {
       <div className="p-4">
         <h3
           className="font-semibold text-gray-800 line-clamp-2 h-12 mb-2 cursor-pointer hover:text-primary"
-          onClick={handleClick}
+          onClick={handleAmazonClick}
         >
           {deal.title}
         </h3>
@@ -260,12 +281,15 @@ export default function DealCard({ deal }: DealCardProps) {
           </div>
         )}
 
-        <button
-          onClick={handleClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
+        <a
+          href={deal.amazonUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={handleAmazonClick}
+          className="block w-full bg-gradient-to-r from-green-500 to-blue-500 text-center text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
         >
           View on Amazon →
-        </button>
+        </a>
 
         <div className="mt-2 flex gap-2">
           <button
