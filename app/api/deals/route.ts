@@ -2,25 +2,43 @@ import { NextResponse } from 'next/server'
 
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
+  const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+  let category = 'all'
+  let limit = 24
+
   try {
     const { searchParams } = new URL(request.url)
-    const category = searchParams.get('category') || 'all'
-    const limit = parseInt(searchParams.get('limit') || '24')
+    category = searchParams.get('category') || 'all'
+    limit = parseInt(searchParams.get('limit') || '24')
+  } catch (error) {
+    console.error('Error parsing URL params:', error)
+    // Use defaults if URL parsing fails
+  }
 
+  try {
     // Fetch from RapidAPI or fallback to curated real Amazon deals
     const deals = await fetchRealDeals(category, limit)
 
+    // Ensure we always return deals - fallback to curated if empty
+    const finalDeals = deals && deals.length > 0 
+      ? deals 
+      : getCuratedRealDeals(category, limit, partnerTag)
+
     return NextResponse.json({
       success: true,
-      count: deals.length,
-      deals: deals,
+      count: finalDeals.length,
+      deals: finalDeals,
     })
   } catch (error: any) {
     console.error('Error fetching deals:', error)
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+    // Even on error, return curated deals as fallback
+    const fallbackDeals = getCuratedRealDeals(category, limit, partnerTag)
+    
+    return NextResponse.json({
+      success: true,
+      count: fallbackDeals.length,
+      deals: fallbackDeals,
+    })
   }
 }
 
@@ -31,7 +49,12 @@ async function fetchRealDeals(category: string, limit: number) {
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      const rapidApiDeals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      // If RapidAPI returns deals, use them; otherwise fall back to curated deals
+      if (rapidApiDeals && rapidApiDeals.length > 0) {
+        return rapidApiDeals
+      }
+      console.log('RapidAPI returned no deals, falling back to curated deals')
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
     }
@@ -290,8 +313,19 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
+  // If category filter resulted in no deals, return all deals instead
+  if (filtered.length === 0) {
+    filtered = allDeals
+  }
+
+  // Safety check: ensure we have at least one deal
+  if (filtered.length === 0) {
+    console.error('No curated deals available!')
+    return []
+  }
+
   // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
+  while (filtered.length < limit && filtered.length > 0) {
     filtered = [...filtered, ...filtered]
   }
 
