@@ -1,5 +1,21 @@
 import { NextResponse } from 'next/server'
 
+type Deal = {
+  id: string
+  title: string
+  originalPrice: number
+  currentPrice: number
+  discount: number
+  rating: number
+  reviews: number
+  image: string
+  category: string
+  amazonUrl: string
+  asin?: string
+  isLightningDeal?: boolean
+  stockStatus?: string
+}
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -24,24 +40,42 @@ export async function GET(request: Request) {
   }
 }
 
-async function fetchRealDeals(category: string, limit: number) {
+async function fetchRealDeals(category: string, limit: number): Promise<Deal[]> {
   const rapidApiKey = process.env.RAPIDAPI_KEY
   const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+  const fallbackDeals = getCuratedRealDeals(category, limit, partnerTag)
 
-  // If RapidAPI is configured, use it
-  if (rapidApiKey) {
-    try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
-    } catch (error) {
-      console.error('RapidAPI error, falling back to curated deals:', error)
-    }
+  if (!rapidApiKey) {
+    return fallbackDeals
   }
 
-  // Fallback to curated real Amazon deals with real images
-  return getCuratedRealDeals(category, limit, partnerTag)
+  try {
+    const rapidDeals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+
+    if (!rapidDeals.length) {
+      return fallbackDeals
+    }
+
+    const combinedDeals = [
+      ...rapidDeals,
+      ...fallbackDeals.filter((fallbackDeal) =>
+        !rapidDeals.some((deal) => deal.id === fallbackDeal.id)
+      ),
+    ]
+
+    return combinedDeals.slice(0, limit)
+  } catch (error) {
+    console.error('RapidAPI error, falling back to curated deals:', error)
+    return fallbackDeals
+  }
 }
 
-async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
+async function fetchFromRapidAPI(
+  category: string,
+  limit: number,
+  apiKey: string,
+  tag: string
+): Promise<Deal[]> {
   const searchTerm = category === 'all' ? 'deals' : category
 
   // Using Amazon Data Scraper API from RapidAPI
@@ -62,7 +96,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   const data = await response.json()
 
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  const mappedDeals: Deal[] = (data.data?.products || []).slice(0, limit).map((item: any): Deal => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
@@ -82,12 +116,14 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  })
+
+  return mappedDeals.filter((deal) => deal.image && deal.discount >= 20)
 }
 
 // Curated real Amazon deals with actual product images and data
-function getCuratedRealDeals(category: string, limit: number, tag: string) {
-  const allDeals = [
+function getCuratedRealDeals(category: string, limit: number, tag: string): Deal[] {
+  const allDeals: Deal[] = [
     // Electronics - Real Amazon bestsellers
     {
       id: 'B0BN3K4C7K',
