@@ -31,7 +31,13 @@ async function fetchRealDeals(category: string, limit: number) {
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      const rapidDeals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+
+      if (rapidDeals.length > 0) {
+        return rapidDeals
+      }
+
+      console.warn('RapidAPI returned no deals, using curated fallback set instead')
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
     }
