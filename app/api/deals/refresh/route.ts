@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server'
 // This endpoint is called by cron jobs or manually from admin to refresh deals
 // Vercel Cron: https://vercel.com/docs/cron-jobs
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: Request) {
   try {
     // Verify request is from authorized source (cron or admin)
