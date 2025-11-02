@@ -71,8 +71,11 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 mt-8 pt-8 text-center">
-          <p className="text-gray-400 text-sm mb-4">
-            DealPulse is a participant in the Amazon Services LLC Associates Program, an affiliate advertising program designed to provide a means for sites to earn advertising fees by advertising and linking to Amazon.com
+          <p className="text-gray-400 text-sm mb-2 font-semibold">
+            📢 Affiliate Disclosure
+          </p>
+          <p className="text-gray-400 text-sm mb-4 max-w-3xl mx-auto">
+            As an Amazon Associate, DealPulse earns from qualifying purchases. We are a participant in the Amazon Services LLC Associates Program, an affiliate advertising program designed to provide a means for us to earn fees by linking to Amazon.com and affiliated sites. Prices and availability are accurate as of the time posted but are subject to change.
           </p>
           <p className="text-gray-500 text-sm">
             © {currentYear} DealPulse. All rights reserved. Built with ❤️ for savvy shoppers.

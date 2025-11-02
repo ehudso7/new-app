@@ -61,8 +61,9 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
 
   const data = await response.json()
 
-  // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  // Transform RapidAPI response and de-duplicate by ASIN
+  const deduped = new Map()
+  const filtered = (data.data?.products || []).map((item: any) => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
@@ -81,12 +82,23 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       asin: item.asin,
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      updatedAt: new Date().toISOString(),
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: any) => deal.image && deal.discount >= 20 && deal.asin)
+  
+  // De-duplicate by ASIN
+  filtered.forEach((deal: any) => {
+    if (!deduped.has(deal.asin)) {
+      deduped.set(deal.asin, deal)
+    }
+  })
+  
+  return Array.from(deduped.values()).slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data
 function getCuratedRealDeals(category: string, limit: number, tag: string) {
+  const now = new Date().toISOString()
   const allDeals = [
     // Electronics - Real Amazon bestsellers
     {
@@ -103,6 +115,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       asin: 'B0BN3K4C7K',
       isLightningDeal: false,
       stockStatus: 'Prime Eligible',
+      updatedAt: now,
     },
     {
       id: 'B0CHXDYX39',
@@ -290,15 +303,16 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
+  // De-duplicate by ASIN (primary key) and add updatedAt if missing
+  const deduped = new Map<string, any>()
+  for (const deal of filtered) {
+    if (!deduped.has(deal.asin)) {
+      deduped.set(deal.asin, { ...deal, updatedAt: deal.updatedAt || now })
+    }
   }
 
-  return filtered.slice(0, limit).map((deal, index) => ({
-    ...deal,
-    id: `${deal.id}-${index}`,
-  }))
+  // Return unique deals, limited to requested count
+  return Array.from(deduped.values()).slice(0, limit)
 }
 
 function detectCategory(title: string): string {

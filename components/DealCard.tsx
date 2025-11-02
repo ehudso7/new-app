@@ -17,6 +17,7 @@ interface Deal {
   isLightningDeal?: boolean
   stockStatus?: string
   asin?: string
+  updatedAt?: string
 }
 
 interface DealCardProps {
@@ -26,8 +27,6 @@ interface DealCardProps {
 export default function DealCard({ deal }: DealCardProps) {
   const [isSaved, setIsSaved] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(0)
-  const [viewerCount, setViewerCount] = useState(0)
   const savings = deal.originalPrice - deal.currentPrice
 
   // Check if deal is already saved on mount
@@ -37,51 +36,6 @@ export default function DealCard({ deal }: DealCardProps) {
     setIsSaved(isAlreadySaved)
   }, [deal.id])
 
-  // Lightning deal countdown timer (for demo: random time between 1-6 hours)
-  useEffect(() => {
-    if (deal.isLightningDeal) {
-      const randomHours = Math.floor(Math.random() * 6) + 1
-      const endTime = Date.now() + randomHours * 60 * 60 * 1000
-
-      const interval = setInterval(() => {
-        const remaining = endTime - Date.now()
-        if (remaining <= 0) {
-          setTimeLeft(0)
-          clearInterval(interval)
-        } else {
-          setTimeLeft(remaining)
-        }
-      }, 1000)
-
-      return () => clearInterval(interval)
-    }
-  }, [deal.isLightningDeal])
-
-  // Simulated viewer count (viral social proof)
-  useEffect(() => {
-    // Random number between 15-150 viewers
-    const baseViewers = Math.floor(Math.random() * 135) + 15
-    setViewerCount(baseViewers)
-
-    // Update viewer count every 10-30 seconds to simulate activity
-    const interval = setInterval(() => {
-      setViewerCount((prev) => {
-        const change = Math.floor(Math.random() * 10) - 4 // +/- 4 viewers
-        const newCount = Math.max(10, Math.min(200, prev + change))
-        return newCount
-      })
-    }, Math.random() * 20000 + 10000)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  // Format countdown timer
-  const formatTimeLeft = (ms: number) => {
-    const hours = Math.floor(ms / (1000 * 60 * 60))
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
-    const seconds = Math.floor((ms % (1000 * 60)) / 1000)
-    return `${hours}h ${minutes}m ${seconds}s`
-  }
 
   const handleClick = async () => {
     // Track click event for analytics
@@ -100,8 +54,11 @@ export default function DealCard({ deal }: DealCardProps) {
       console.error('Analytics error:', error)
     }
 
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    // Open Amazon link through our redirect route (ensures proper affiliate tracking)
+    const amazonLink = deal.asin 
+      ? `/api/out/amazon/${deal.asin}`
+      : deal.amazonUrl
+    window.open(amazonLink, '_blank')
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -137,10 +94,15 @@ export default function DealCard({ deal }: DealCardProps) {
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation()
 
+    // Use the proper redirect URL for sharing
+    const shareUrl = deal.asin
+      ? `${window.location.origin}/api/out/amazon/${deal.asin}`
+      : deal.amazonUrl
+
     const shareData = {
       title: deal.title,
       text: `${deal.discount}% off! Was $${deal.originalPrice}, now $${deal.currentPrice}`,
-      url: deal.amazonUrl,
+      url: shareUrl,
     }
 
     try {
@@ -149,7 +111,7 @@ export default function DealCard({ deal }: DealCardProps) {
         await navigator.share(shareData)
       } else {
         // Fallback: Copy to clipboard
-        await navigator.clipboard.writeText(deal.amazonUrl)
+        await navigator.clipboard.writeText(shareUrl)
         alert('Link copied to clipboard!')
       }
 
@@ -167,17 +129,9 @@ export default function DealCard({ deal }: DealCardProps) {
     }
   }
 
-  // Stock urgency indicator
-  const stockUrgency = deal.discount > 50 ? 'Only a few left!' : deal.discount > 30 ? 'Selling fast!' : null
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow relative">
-      {/* Viewer count - viral social proof */}
-      <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs font-semibold z-20 flex items-center gap-1">
-        <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-        {viewerCount} viewing
-      </div>
-
       <div className="relative h-48 bg-gray-100">
         {deal.isLightningDeal && (
           <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold z-10 animate-pulse">
@@ -188,17 +142,10 @@ export default function DealCard({ deal }: DealCardProps) {
           -{deal.discount}%
         </div>
 
-        {/* Countdown timer for lightning deals */}
-        {deal.isLightningDeal && timeLeft > 0 && (
-          <div className="absolute bottom-2 left-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold text-center z-10">
-            ⏰ Ends in: {formatTimeLeft(timeLeft)}
-          </div>
-        )}
-
         {/* Real Product Image */}
         {deal.image && !imageError ? (
           <Image
-            src={deal.image}
+            src={`/api/img?src=${encodeURIComponent(deal.image)}`}
             alt={deal.title}
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
@@ -247,16 +194,8 @@ export default function DealCard({ deal }: DealCardProps) {
         </div>
 
         {deal.stockStatus && (
-          <div className="text-orange-600 text-xs mb-2 font-semibold">
+          <div className="text-blue-600 text-xs mb-2 font-semibold">
             {deal.stockStatus}
-          </div>
-        )}
-
-        {/* Stock urgency indicator */}
-        {stockUrgency && (
-          <div className="bg-orange-100 text-orange-700 text-xs px-3 py-2 rounded mb-2 font-semibold flex items-center gap-1">
-            <span>🔥</span>
-            {stockUrgency}
           </div>
         )}
 
@@ -266,6 +205,13 @@ export default function DealCard({ deal }: DealCardProps) {
         >
           View on Amazon →
         </button>
+
+        {deal.updatedAt && (
+          <div className="mt-2 text-xs text-gray-500 text-center">
+            Updated {formatTimeAgo(deal.updatedAt)}
+            {deal.asin && ` • ASIN: ${deal.asin}`}
+          </div>
+        )}
 
         <div className="mt-2 flex gap-2">
           <button
@@ -300,4 +246,20 @@ function getCategoryEmoji(category: string): string {
     beauty: '💄',
   }
   return emojis[category] || '🎁'
+}
+
+function formatTimeAgo(timestamp: string): string {
+  const now = Date.now()
+  const then = new Date(timestamp).getTime()
+  const diffMs = now - then
+  
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
 }
