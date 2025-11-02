@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server'
 
+// Validate image URL format
+function isValidImageUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false
+  const imageUrl = url.trim()
+  return (
+    (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) &&
+    (imageUrl.includes('media-amazon.com') || imageUrl.includes('amazon.com/images'))
+  )
+}
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -10,17 +20,59 @@ export async function GET(request: Request) {
     // Fetch from RapidAPI or fallback to curated real Amazon deals
     const deals = await fetchRealDeals(category, limit)
 
+    // Final validation - ensure all deals have required fields
+    const validDeals = deals.filter(deal => {
+      return (
+        deal &&
+        deal.id &&
+        deal.title &&
+        deal.title.length > 5 &&
+        deal.image &&
+        isValidImageUrl(deal.image) &&
+        typeof deal.currentPrice === 'number' &&
+        deal.currentPrice > 0 &&
+        typeof deal.discount === 'number' &&
+        deal.discount >= 0
+      )
+    })
+
+    if (validDeals.length === 0) {
+      console.error('?? No valid deals found, this should not happen')
+      // Last resort: return a minimal valid deal structure
+      return NextResponse.json({
+        success: false,
+        error: 'No valid deals available',
+        count: 0,
+        deals: [],
+      }, { status: 503 })
+    }
+
     return NextResponse.json({
       success: true,
-      count: deals.length,
-      deals: deals,
+      count: validDeals.length,
+      deals: validDeals,
     })
   } catch (error: any) {
     console.error('Error fetching deals:', error)
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+    // Even on error, try to return curated deals as fallback
+    try {
+      const category = new URL(request.url).searchParams.get('category') || 'all'
+      const limit = parseInt(new URL(request.url).searchParams.get('limit') || '24')
+      const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+      const fallbackDeals = getCuratedRealDeals(category, limit, partnerTag)
+      
+      return NextResponse.json({
+        success: true,
+        count: fallbackDeals.length,
+        deals: fallbackDeals,
+        warning: 'Using fallback deals due to API error',
+      })
+    } catch (fallbackError) {
+      return NextResponse.json(
+        { success: false, error: error.message, count: 0, deals: [] },
+        { status: 500 }
+      )
+    }
   }
 }
 
@@ -28,17 +80,25 @@ async function fetchRealDeals(category: string, limit: number) {
   const rapidApiKey = process.env.RAPIDAPI_KEY
   const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
 
-  // If RapidAPI is configured, use it
-  if (rapidApiKey) {
+  // If RapidAPI is configured, try it first
+  if (rapidApiKey && rapidApiKey.trim()) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
-    } catch (error) {
-      console.error('RapidAPI error, falling back to curated deals:', error)
+      const rapidApiDeals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      if (rapidApiDeals && rapidApiDeals.length > 0) {
+        console.log(`? Fetched ${rapidApiDeals.length} deals from RapidAPI for category: ${category}`)
+        return rapidApiDeals
+      }
+    } catch (error: any) {
+      console.warn('?? RapidAPI error, falling back to curated deals:', error.message || error)
     }
+  } else {
+    console.log('?? RapidAPI key not configured, using curated deals')
   }
 
   // Fallback to curated real Amazon deals with real images
-  return getCuratedRealDeals(category, limit, partnerTag)
+  const curatedDeals = getCuratedRealDeals(category, limit, partnerTag)
+  console.log(`? Returning ${curatedDeals.length} curated deals for category: ${category}`)
+  return curatedDeals
 }
 
 async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
@@ -53,19 +113,28 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       'X-RapidAPI-Key': apiKey,
       'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com',
     },
+    // Add timeout to prevent hanging
+    signal: AbortSignal.timeout(10000), // 10 second timeout
   })
 
   if (!response.ok) {
-    throw new Error(`RapidAPI error: ${response.status}`)
+    const errorText = await response.text().catch(() => 'Unknown error')
+    throw new Error(`RapidAPI error: ${response.status} - ${errorText}`)
   }
 
   const data = await response.json()
 
-  // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  // Transform RapidAPI response and validate images
+  const deals = (data.data?.products || []).slice(0, limit * 2).map((item: any) => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+
+    // Normalize image URL to ensure it's valid
+    let imageUrl = item.product_photo || item.product_main_image_url || ''
+    if (imageUrl && !imageUrl.startsWith('http')) {
+      imageUrl = `https://${imageUrl}`
+    }
 
     return {
       id: item.asin || `deal-${Date.now()}-${Math.random()}`,
@@ -75,14 +144,29 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       discount: discount,
       rating: parseFloat(item.product_star_rating || '4.5'),
       reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
+      image: imageUrl,
       category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
+      amazonUrl: item.asin ? `https://www.amazon.com/dp/${item.asin}?tag=${tag}` : `https://www.amazon.com/s?k=${encodeURIComponent(item.product_title || '')}&tag=${tag}`,
       asin: item.asin,
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: any) => {
+    // Only return deals with valid images and minimum discount
+    return deal.image && 
+           deal.image.startsWith('http') && 
+           deal.discount >= 20 && 
+           deal.title && 
+           deal.title.length > 10
+  })
+
+  // If we have enough valid deals, return them
+  if (deals.length >= limit) {
+    return deals.slice(0, limit)
+  }
+
+  // If not enough valid deals from RapidAPI, throw to fallback to curated
+  throw new Error(`Insufficient valid deals from RapidAPI: ${deals.length}/${limit}`)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -285,19 +369,30 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     },
   ]
 
-  // Filter by category
-  let filtered = category === 'all'
+  // Filter by category and validate images
+  let filtered = (category === 'all'
     ? allDeals
-    : allDeals.filter(deal => deal.category === category)
+    : allDeals.filter(deal => deal.category === category))
+    .filter(deal => {
+      // Ensure deal has valid image URL
+      return deal.image && isValidImageUrl(deal.image) && deal.title && deal.title.length > 5
+    })
+
+  // If no valid deals found, return all deals (fallback)
+  if (filtered.length === 0) {
+    filtered = allDeals.filter(deal => deal.image && deal.title)
+  }
 
   // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
+  while (filtered.length < limit && filtered.length > 0) {
     filtered = [...filtered, ...filtered]
   }
 
   return filtered.slice(0, limit).map((deal, index) => ({
     ...deal,
     id: `${deal.id}-${index}`,
+    // Ensure image URL is absolute
+    image: deal.image.startsWith('http') ? deal.image : `https://${deal.image}`,
   }))
 }
 
