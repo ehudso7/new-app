@@ -83,6 +83,23 @@ export default function DealCard({ deal }: DealCardProps) {
     return `${hours}h ${minutes}m ${seconds}s`
   }
 
+  // Extract ASIN from deal (prefer deal.asin, fallback to extracting from amazonUrl)
+  const getAsin = (): string | null => {
+    if (deal.asin) {
+      return deal.asin.toUpperCase().trim()
+    }
+    // Try to extract ASIN from amazonUrl if present
+    if (deal.amazonUrl) {
+      const match = deal.amazonUrl.match(/\/dp\/([A-Z0-9]{10})/i) || 
+                   deal.amazonUrl.match(/\/gp\/product\/([A-Z0-9]{10})/i) ||
+                   deal.amazonUrl.match(/asin=([A-Z0-9]{10})/i)
+      if (match && match[1]) {
+        return match[1].toUpperCase().trim()
+      }
+    }
+    return null
+  }
+
   const handleClick = async () => {
     // Track click event for analytics
     try {
@@ -100,8 +117,14 @@ export default function DealCard({ deal }: DealCardProps) {
       console.error('Analytics error:', error)
     }
 
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    // Use canonical redirect route for reliable click-through
+    const asin = getAsin()
+    if (asin) {
+      window.open(`/api/out/amazon/${asin}`, '_blank')
+    } else {
+      // Fallback to original URL if ASIN cannot be extracted
+      window.open(deal.amazonUrl, '_blank')
+    }
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -137,10 +160,15 @@ export default function DealCard({ deal }: DealCardProps) {
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation()
 
+    const asin = getAsin()
+    const shareUrl = asin 
+      ? `${window.location.origin}/api/out/amazon/${asin}`
+      : deal.amazonUrl
+
     const shareData = {
       title: deal.title,
       text: `${deal.discount}% off! Was $${deal.originalPrice}, now $${deal.currentPrice}`,
-      url: deal.amazonUrl,
+      url: shareUrl,
     }
 
     try {
@@ -149,7 +177,11 @@ export default function DealCard({ deal }: DealCardProps) {
         await navigator.share(shareData)
       } else {
         // Fallback: Copy to clipboard
-        await navigator.clipboard.writeText(deal.amazonUrl)
+        const asin = getAsin()
+        const shareUrl = asin 
+          ? `${window.location.origin}/api/out/amazon/${asin}`
+          : deal.amazonUrl
+        await navigator.clipboard.writeText(shareUrl)
         alert('Link copied to clipboard!')
       }
 
@@ -197,15 +229,19 @@ export default function DealCard({ deal }: DealCardProps) {
 
         {/* Real Product Image */}
         {deal.image && !imageError ? (
-          <Image
-            src={deal.image}
-            alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
+          <div
+            className="relative w-full h-full cursor-pointer"
             onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
-          />
+          >
+            <Image
+              src={deal.image}
+              alt={deal.title}
+              fill
+              className="object-contain p-4 hover:scale-105 transition-transform"
+              onError={() => setImageError(true)}
+              unoptimized
+            />
+          </div>
         ) : (
           <div
             className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
@@ -217,12 +253,18 @@ export default function DealCard({ deal }: DealCardProps) {
       </div>
 
       <div className="p-4">
-        <h3
-          className="font-semibold text-gray-800 line-clamp-2 h-12 mb-2 cursor-pointer hover:text-primary"
-          onClick={handleClick}
+        <a
+          href={deal.asin ? `/api/out/amazon/${deal.asin}` : deal.amazonUrl}
+          target="_blank"
+          rel="nofollow noopener sponsored"
+          onClick={(e) => {
+            e.preventDefault()
+            handleClick()
+          }}
+          className="block font-semibold text-gray-800 line-clamp-2 h-12 mb-2 cursor-pointer hover:text-primary"
         >
           {deal.title}
-        </h3>
+        </a>
 
         <div className="flex items-center gap-2 mb-3">
           <div className="flex items-center">
@@ -260,12 +302,18 @@ export default function DealCard({ deal }: DealCardProps) {
           </div>
         )}
 
-        <button
-          onClick={handleClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
+        <a
+          href={deal.asin ? `/api/out/amazon/${deal.asin}` : deal.amazonUrl}
+          target="_blank"
+          rel="nofollow noopener sponsored"
+          onClick={(e) => {
+            e.preventDefault()
+            handleClick()
+          }}
+          className="block w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 text-center"
         >
           View on Amazon →
-        </button>
+        </a>
 
         <div className="mt-2 flex gap-2">
           <button
