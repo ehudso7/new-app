@@ -1,98 +1,305 @@
 import { NextResponse } from 'next/server'
 
+type Deal = {
+  id: string
+  title: string
+  originalPrice: number
+  currentPrice: number
+  discount: number
+  rating: number
+  reviews: number
+  image: string
+  category: string
+  amazonUrl: string
+  isLightningDeal?: boolean
+  stockStatus?: string
+  asin?: string
+}
+
+export const dynamic = 'force-dynamic'
+
+const DEFAULT_LIMIT = 24
+const MAX_LIMIT = 60
+const DEFAULT_CATEGORY = 'all'
+const DEFAULT_ASSOCIATE_TAG = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+const DEAL_API_SOURCE = (process.env.DEAL_API_SOURCE || '').toLowerCase()
+const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'real-time-amazon-data.p.rapidapi.com'
+const RAPIDAPI_COUNTRY = process.env.RAPIDAPI_COUNTRY || 'US'
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const category = searchParams.get('category') || 'all'
-    const limit = parseInt(searchParams.get('limit') || '24')
+    const category = (searchParams.get('category') || DEFAULT_CATEGORY).toLowerCase()
+    const limit = clampLimit(parseInt(searchParams.get('limit') || `${DEFAULT_LIMIT}`, 10))
 
-    // Fetch from RapidAPI or fallback to curated real Amazon deals
     const deals = await fetchRealDeals(category, limit)
+
+    if (!deals.length) {
+      throw new Error('No deals available at this time. Please try again in a few minutes.')
+    }
 
     return NextResponse.json({
       success: true,
       count: deals.length,
-      deals: deals,
+      deals,
     })
   } catch (error: any) {
     console.error('Error fetching deals:', error)
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: error?.message || 'Failed to fetch deals' },
       { status: 500 }
     )
   }
 }
 
-async function fetchRealDeals(category: string, limit: number) {
-  const rapidApiKey = process.env.RAPIDAPI_KEY
-  const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+async function fetchRealDeals(category: string, limit: number): Promise<Deal[]> {
+  const partnerTag = DEFAULT_ASSOCIATE_TAG
+  const rapidApiKey = process.env.RAPIDAPI_KEY?.trim()
 
-  // If RapidAPI is configured, use it
-  if (rapidApiKey) {
+  const normalizedCategory = category || DEFAULT_CATEGORY
+
+  const preferRapidApi = (DEAL_API_SOURCE === 'rapidapi' || DEAL_API_SOURCE === '') && Boolean(rapidApiKey)
+
+  if (preferRapidApi) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      const rapidDeals = await fetchFromRapidAPI(normalizedCategory, limit, rapidApiKey!, partnerTag)
+      if (rapidDeals.length) {
+        return rapidDeals
+      }
+      console.warn('RapidAPI returned no usable deals; falling back to curated catalog.')
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
     }
+  } else if (DEAL_API_SOURCE === 'rapidapi' && !rapidApiKey) {
+    console.warn('DEAL_API_SOURCE set to rapidapi but RAPIDAPI_KEY is missing. Falling back to curated deals.')
   }
 
-  // Fallback to curated real Amazon deals with real images
-  return getCuratedRealDeals(category, limit, partnerTag)
+  if (DEAL_API_SOURCE === 'amazon') {
+    console.warn('Amazon Product Advertising API source selected, but no implementation is active yet. Falling back to curated deals.')
+  }
+
+  return getCuratedRealDeals(normalizedCategory, limit, partnerTag)
 }
 
-async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
-  const searchTerm = category === 'all' ? 'deals' : category
+async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string): Promise<Deal[]> {
+  const searchTerm = category === 'all' ? 'top amazon deals' : `${category} deals`
 
-  // Using Amazon Data Scraper API from RapidAPI
-  const url = `https://real-time-amazon-data.p.rapidapi.com/search?query=${encodeURIComponent(searchTerm)}&page=1&country=US&sort_by=RELEVANCE&product_condition=ALL`
+  const url = new URL(`https://${RAPIDAPI_HOST}/search`)
+  url.searchParams.set('query', searchTerm)
+  url.searchParams.set('page', '1')
+  url.searchParams.set('country', RAPIDAPI_COUNTRY)
+  url.searchParams.set('sort_by', 'RELEVANCE')
+  url.searchParams.set('product_condition', 'ALL')
 
-  const response = await fetch(url, {
+  const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
       'X-RapidAPI-Key': apiKey,
-      'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com',
+      'X-RapidAPI-Host': RAPIDAPI_HOST,
     },
+    cache: 'no-store',
   })
 
   if (!response.ok) {
-    throw new Error(`RapidAPI error: ${response.status}`)
+    const errorBody = await response.text()
+    throw new Error(`RapidAPI error (${response.status}): ${errorBody || 'Unknown error'}`)
   }
 
-  const data = await response.json()
+  const payload = await response.json()
+  const rawProducts = extractRapidProducts(payload)
 
-  // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  if (!rawProducts.length) {
+    console.warn('RapidAPI responded without products payload:', payload)
+    return []
+  }
 
-    return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
-      originalPrice: originalPrice,
-      currentPrice: price,
-      discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
-      isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+  const deals: Deal[] = []
+  const seen = new Set<string>()
+
+  for (const item of rawProducts) {
+    const normalized = normalizeRapidApiDeal(item, tag)
+    if (!normalized) {
+      continue
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+
+    const dedupeKey = normalized.asin || normalized.amazonUrl
+    if (dedupeKey && seen.has(dedupeKey)) {
+      continue
+    }
+    if (dedupeKey) {
+      seen.add(dedupeKey)
+    }
+
+    deals.push(normalized)
+
+    if (deals.length >= limit) {
+      break
+    }
+  }
+
+  return deals
+}
+
+function extractRapidProducts(payload: any): any[] {
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.data?.products)) return payload.data.products
+  if (Array.isArray(payload.data?.results)) return payload.data.results
+  if (Array.isArray(payload.products)) return payload.products
+  if (Array.isArray(payload.results)) return payload.results
+
+  const candidates = Object.values(payload).find((value) => Array.isArray(value))
+  return Array.isArray(candidates) ? candidates : []
+}
+
+function normalizeRapidApiDeal(item: any, tag: string): Deal | null {
+  const title = (item?.product_title || item?.title || item?.name || '').toString().trim()
+  if (!title) {
+    return null
+  }
+
+  const image = resolveImageUrl(item)
+  if (!image) {
+    return null
+  }
+
+  const currentPriceValue =
+    parsePrice(item?.product_price) ??
+    parsePrice(item?.deal_price) ??
+    parsePrice(item?.current_price) ??
+    parsePrice(item?.price?.current_price) ??
+    parsePrice(item?.buybox_winner?.price?.value) ??
+    parsePrice(item?.price)
+
+  if (!currentPriceValue || currentPriceValue <= 0) {
+    return null
+  }
+
+  const originalPriceValue =
+    parsePrice(item?.product_original_price) ??
+    parsePrice(item?.original_price) ??
+    parsePrice(item?.list_price) ??
+    parsePrice(item?.price_strike_through) ??
+    parsePrice(item?.buybox_winner?.price?.value_before_coupon) ??
+    (currentPriceValue * 1.25)
+
+  const currentPrice = Number(currentPriceValue.toFixed(2))
+  const originalPrice = Number(
+    (originalPriceValue > currentPrice ? originalPriceValue : currentPrice * 1.25).toFixed(2)
+  )
+
+  const discountFromApi = parseFloat(
+    (item?.savings_percent || item?.discount_percentage || item?.deal_percentage || '')
+      .toString()
+      .replace(/[,%]/g, '')
+  )
+
+  let discount = Number.isFinite(discountFromApi) ? discountFromApi : computeDiscount(originalPrice, currentPrice, 0)
+  discount = discount <= 0 ? computeDiscount(originalPrice, currentPrice, 0) : discount
+
+  if (discount < 10) {
+    // Require meaningful savings for display
+    return null
+  }
+
+  const ratingValue = parseFloat((item?.product_star_rating || item?.rating || item?.average_rating || '0').toString().replace(',', '.'))
+  const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? Math.min(5, Math.max(3.5, ratingValue)) : 4.5
+
+  const reviewsValue = parseInt(
+    (item?.product_num_ratings || item?.reviews || item?.ratings_total || '0').toString().replace(/[^0-9]/g, ''),
+    10
+  )
+  const reviews = Number.isFinite(reviewsValue) && reviewsValue > 0 ? reviewsValue : 100
+
+  const asin = (item?.asin || item?.ASIN || item?.id || '').toString().trim()
+
+  const amazonUrl = withAffiliateTag(
+    item?.product_url || item?.url || item?.detail_page_url || item?.link,
+    tag,
+    asin,
+    title
+  )
+
+  const inferredCategory = detectCategory(title, item?.category)
+
+  return {
+    id: asin || `rapid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    originalPrice,
+    currentPrice,
+    discount: Math.min(90, Math.round(discount)),
+    rating: Number(rating.toFixed(1)),
+    reviews,
+    image,
+    category: inferredCategory,
+    amazonUrl,
+    asin: asin || undefined,
+    isLightningDeal: Boolean(
+      item?.is_lightning_deal || item?.deal_type === 'LIGHTNING_DEAL' || Math.round(discount) >= 50
+    ),
+    stockStatus: item?.is_prime ? 'Prime Eligible' : undefined,
+  }
+}
+
+function resolveImageUrl(item: any): string | null {
+  const candidates = [
+    item?.product_photo,
+    item?.product_main_image_url,
+    item?.product_image,
+    item?.image,
+    item?.image_url,
+    item?.url_image,
+    item?.main_image,
+    item?.thumbnail,
+    item?.picture,
+    item?.primary_image,
+    item?.product_photos?.[0],
+    item?.images?.[0],
+  ]
+
+  const url = candidates.find((candidate) => typeof candidate === 'string' && candidate.startsWith('http'))
+  return url ? url.split('?')[0] : null
+}
+
+function parsePrice(value: any): number | null {
+  if (value == null) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^0-9.,-]/g, '').replace(',', '.')
+    const parsed = parseFloat(cleaned)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (typeof value === 'object') {
+    if ('amount' in value) return parsePrice(value.amount)
+    if ('value' in value) return parsePrice(value.value)
+    if ('price' in value) return parsePrice(value.price)
+  }
+  return null
+}
+
+function computeDiscount(original: number, current: number, fallback = 0): number {
+  if (original > 0 && current > 0 && current < original) {
+    return Math.round(((original - current) / original) * 100)
+  }
+  return fallback
+}
+
+function clampLimit(limit: number): number {
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return DEFAULT_LIMIT
+  }
+  return Math.min(MAX_LIMIT, Math.max(1, Math.floor(limit)))
 }
 
 // Curated real Amazon deals with actual product images and data
-function getCuratedRealDeals(category: string, limit: number, tag: string) {
-  const allDeals = [
+function getCuratedRealDeals(category: string, limit: number, tag: string): Deal[] {
+  const allDeals: Deal[] = [
     // Electronics - Real Amazon bestsellers
     {
       id: 'B0BN3K4C7K',
       title: 'Apple AirPods Pro (2nd Generation) Wireless Ear Buds with USB-C Charging',
-      originalPrice: 249.00,
+      originalPrice: 249.0,
       currentPrice: 189.99,
       discount: 24,
       rating: 4.7,
@@ -210,7 +417,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     {
       id: 'B07PXGQC1Q',
       title: 'adidas Mens Cloudfoam Pure 2.0 Running Shoe',
-      originalPrice: 75.00,
+      originalPrice: 75.0,
       currentPrice: 44.95,
       discount: 40,
       rating: 4.4,
@@ -285,29 +492,54 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     },
   ]
 
-  // Filter by category
-  let filtered = category === 'all'
-    ? allDeals
-    : allDeals.filter(deal => deal.category === category)
+  let filtered = category === 'all' ? allDeals : allDeals.filter((deal) => deal.category === category)
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
+  if (!filtered.length) {
+    filtered = allDeals
   }
 
-  return filtered.slice(0, limit).map((deal, index) => ({
-    ...deal,
-    id: `${deal.id}-${index}`,
-  }))
+  const results: Deal[] = []
+  let index = 0
+
+  while (results.length < limit) {
+    for (const deal of filtered) {
+      if (results.length >= limit) break
+      results.push({
+        ...deal,
+        id: `${deal.id}-${index++}`,
+      })
+    }
+  }
+
+  return results
 }
 
-function detectCategory(title: string): string {
+function detectCategory(title: string, fallback?: string): string {
   const lower = title.toLowerCase()
-  if (lower.match(/phone|laptop|computer|tablet|headphone|earbud|speaker|camera|tv|gaming|watch/)) return 'electronics'
-  if (lower.match(/furniture|kitchen|home|decor|bedding|pillow|vacuum|cleaner|purifier/)) return 'home'
-  if (lower.match(/shirt|pants|dress|shoes|bag|hat|sunglasses|clothes|sneaker|beanie/)) return 'fashion'
-  if (lower.match(/fitness|yoga|dumbbell|sport|exercise|workout|mat|tracker/)) return 'sports'
-  if (lower.match(/toy|game|puzzle|kids|children|play|lego|building/)) return 'toys'
-  if (lower.match(/makeup|beauty|cosmetic|skin|hair|nail|cream|serum/)) return 'beauty'
-  return 'electronics'
+  if (lower.match(/phone|laptop|computer|tablet|headphone|earbud|speaker|camera|tv|gaming|watch|charger/)) return 'electronics'
+  if (lower.match(/furniture|kitchen|home|decor|bedding|pillow|vacuum|cleaner|purifier|coffee|air fryer/)) return 'home'
+  if (lower.match(/shirt|pant|dress|shoe|bag|hat|sunglass|cloth|sneaker|beanie|jacket|hoodie/)) return 'fashion'
+  if (lower.match(/fitness|yoga|dumbbell|sport|exercise|workout|mat|tracker|gym|bike/)) return 'sports'
+  if (lower.match(/toy|game|puzzle|kid|children|play|lego|building|plush/)) return 'toys'
+  if (lower.match(/makeup|beauty|cosmetic|skin|hair|nail|cream|serum|moisturizer|lotion/)) return 'beauty'
+  return (fallback && typeof fallback === 'string' ? fallback.toLowerCase() : 'electronics')
+}
+
+function withAffiliateTag(rawUrl: string | undefined, tag: string, asin?: string, title?: string): string {
+  const fallbackUrl = asin
+    ? `https://www.amazon.com/dp/${asin}`
+    : `https://www.amazon.com/s?k=${encodeURIComponent(title || 'amazon deals')}`
+
+  const baseUrl = rawUrl && rawUrl.startsWith('http') ? rawUrl : fallbackUrl
+
+  try {
+    const url = new URL(baseUrl)
+    if (tag) {
+      url.searchParams.set('tag', tag.replace(/^tag=/, ''))
+    }
+    return url.toString()
+  } catch (error) {
+    const connector = fallbackUrl.includes('?') ? '&' : '?'
+    return `${fallbackUrl}${connector}tag=${encodeURIComponent(tag.replace(/^tag=/, ''))}`
+  }
 }

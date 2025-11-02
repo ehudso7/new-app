@@ -9,7 +9,13 @@ export async function fetchDeals(category: string = 'all', limit: number = 24) {
     }
 
     const data = await response.json()
-    return data.deals || []
+    const deals = Array.isArray(data.deals) ? data.deals : []
+
+    return deals.filter((deal: any) => {
+      if (!deal || typeof deal !== 'object') return false
+      if (!deal.image || typeof deal.image !== 'string') return false
+      return deal.image.startsWith('http')
+    })
   } catch (error) {
     console.error('Error fetching deals:', error)
     return []
