@@ -31,7 +31,12 @@ async function fetchRealDeals(category: string, limit: number) {
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      const deals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      // If RapidAPI returns deals, use them; otherwise fallback
+      if (deals && deals.length > 0) {
+        return deals
+      }
+      console.log('RapidAPI returned no deals, falling back to curated deals')
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
     }
@@ -290,8 +295,13 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
+  // If no deals match the category, fallback to all deals
+  if (filtered.length === 0) {
+    filtered = allDeals
+  }
+
   // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
+  while (filtered.length < limit && filtered.length > 0) {
     filtered = [...filtered, ...filtered]
   }
 
