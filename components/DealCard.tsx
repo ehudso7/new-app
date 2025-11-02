@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 
 interface Deal {
   id: string
@@ -100,8 +99,24 @@ export default function DealCard({ deal }: DealCardProps) {
       console.error('Analytics error:', error)
     }
 
+    // Ensure Amazon URL is properly formatted
+    let amazonUrl = deal.amazonUrl
+    if (!amazonUrl || amazonUrl.trim() === '') {
+      // Fallback to search if no URL provided
+      amazonUrl = `https://www.amazon.com/s?k=${encodeURIComponent(deal.title)}&tag=dealsplus077-20`
+    }
+    
+    // Ensure URL has proper protocol
+    if (!amazonUrl.startsWith('http://') && !amazonUrl.startsWith('https://')) {
+      amazonUrl = `https://${amazonUrl}`
+    }
+
     // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    const newWindow = window.open(amazonUrl, '_blank', 'noopener,noreferrer')
+    if (!newWindow) {
+      // If popup blocked, try direct navigation
+      window.location.href = amazonUrl
+    }
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -178,7 +193,7 @@ export default function DealCard({ deal }: DealCardProps) {
         {viewerCount} viewing
       </div>
 
-      <div className="relative h-48 bg-gray-100">
+      <div className="relative h-48 bg-gray-100 overflow-hidden">
         {deal.isLightningDeal && (
           <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold z-10 animate-pulse">
             ⚡ Lightning Deal
@@ -197,14 +212,16 @@ export default function DealCard({ deal }: DealCardProps) {
 
         {/* Real Product Image */}
         {deal.image && !imageError ? (
-          <Image
+          <img
             src={deal.image}
             alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
+            className="absolute inset-0 w-full h-full object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
+            onError={() => {
+              console.error('Image failed to load:', deal.image)
+              setImageError(true)
+            }}
+            loading="lazy"
           />
         ) : (
           <div
