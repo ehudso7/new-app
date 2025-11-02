@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { safeImageUrl } from '@/utils/imageUtils'
 
 interface Deal {
   id: string
@@ -196,24 +196,28 @@ export default function DealCard({ deal }: DealCardProps) {
         )}
 
         {/* Real Product Image */}
-        {deal.image && !imageError ? (
-          <Image
-            src={deal.image}
-            alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
-            onClick={handleClick}
-          >
-            {getCategoryEmoji(deal.category)}
-          </div>
-        )}
+        {(() => {
+          const imgSrc = safeImageUrl(deal.image);
+          return imgSrc && !imageError ? (
+            <img
+              src={imgSrc}
+              alt={deal.title}
+              className="mx-auto h-40 w-full object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
+              onClick={handleClick}
+              onError={() => setImageError(true)}
+              loading="lazy"
+              width={320}
+              height={160}
+            />
+          ) : (
+            <div
+              className="h-40 grid place-items-center text-sm text-gray-500 cursor-pointer"
+              onClick={handleClick}
+            >
+              Image unavailable
+            </div>
+          );
+        })()}
       </div>
 
       <div className="p-4">
@@ -290,14 +294,3 @@ export default function DealCard({ deal }: DealCardProps) {
   )
 }
 
-function getCategoryEmoji(category: string): string {
-  const emojis: { [key: string]: string } = {
-    electronics: '📱',
-    home: '🏠',
-    fashion: '👔',
-    sports: '⚽',
-    toys: '🧸',
-    beauty: '💄',
-  }
-  return emojis[category] || '🎁'
-}
