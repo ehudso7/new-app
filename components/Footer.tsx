@@ -40,12 +40,12 @@ export default function Footer() {
           <div>
             <h3 className="font-bold text-lg mb-4">Categories</h3>
             <ul className="space-y-2">
-              <li><Link href="/categories/electronics" className="text-gray-400 hover:text-white">Electronics</Link></li>
-              <li><Link href="/categories/home" className="text-gray-400 hover:text-white">Home & Kitchen</Link></li>
-              <li><Link href="/categories/fashion" className="text-gray-400 hover:text-white">Fashion</Link></li>
-              <li><Link href="/categories/sports" className="text-gray-400 hover:text-white">Sports & Fitness</Link></li>
-              <li><Link href="/categories/toys" className="text-gray-400 hover:text-white">Toys & Games</Link></li>
-              <li><Link href="/categories/beauty" className="text-gray-400 hover:text-white">Beauty</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Electronics</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Home & Kitchen</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Fashion</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Sports & Fitness</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Toys & Games</Link></li>
+              <li><Link href="/categories" className="text-gray-400 hover:text-white">Beauty</Link></li>
             </ul>
           </div>
 

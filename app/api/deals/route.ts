@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Mark as dynamic route to allow query parameters
+export const dynamic = 'force-dynamic'
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {

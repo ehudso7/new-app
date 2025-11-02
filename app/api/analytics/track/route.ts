@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Mark as dynamic route
+export const dynamic = 'force-dynamic'
+
 // Analytics tracking endpoint
 export async function POST(request: Request) {
   try {
