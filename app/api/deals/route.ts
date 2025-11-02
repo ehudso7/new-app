@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 
+const ALLOWED_IMAGE_HOSTS = new Set([
+  'm.media-amazon.com',
+  'images-na.ssl-images-amazon.com',
+  'images.amazon.com',
+])
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -62,27 +68,39 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   const data = await response.json()
 
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  return (data.data?.products || [])
+    .slice(0, limit)
+    .map((item: any) => {
+      const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
+      const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
+      const discount =
+        originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
 
-    return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
-      originalPrice: originalPrice,
-      currentPrice: price,
-      discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
-      isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
-    }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+      const imageUrl = normalizeAmazonImageUrl(item.product_photo)
+      if (!imageUrl) {
+        if (item.asin) {
+          console.warn(`[images] dropping ${item.asin} - invalid or missing image`, item.product_photo)
+        }
+        return null
+      }
+
+      return {
+        id: item.asin || `deal-${Date.now()}-${Math.random()}`,
+        title: item.product_title || 'Amazon Product',
+        originalPrice: originalPrice,
+        currentPrice: price,
+        discount: discount,
+        rating: parseFloat(item.product_star_rating || '4.5'),
+        reviews: parseInt(item.product_num_ratings || '100'),
+        imageUrl,
+        category: detectCategory(item.product_title),
+        amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
+        asin: item.asin,
+        isLightningDeal: discount > 50,
+        stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      }
+    })
+    .filter((deal: any) => deal && deal.imageUrl && deal.discount >= 20)
 }
 
 // Curated real Amazon deals with actual product images and data
@@ -97,7 +115,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 24,
       rating: 4.7,
       reviews: 85234,
-      image: 'https://m.media-amazon.com/images/I/61f1YfTkTDL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61f1YfTkTDL._AC_SL1500_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B0BN3K4C7K?tag=${tag}`,
       asin: 'B0BN3K4C7K',
@@ -112,7 +130,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 50,
       rating: 4.6,
       reviews: 45123,
-      image: 'https://m.media-amazon.com/images/I/51TjJOTfslL._AC_SL1000_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/51TjJOTfslL._AC_SL1000_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B0CHXDYX39?tag=${tag}`,
       asin: 'B0CHXDYX39',
@@ -127,7 +145,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 40,
       rating: 4.6,
       reviews: 12847,
-      image: 'https://m.media-amazon.com/images/I/61R7JYKtASL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61R7JYKtASL._AC_SL1500_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B09B8RXJQ4?tag=${tag}`,
       asin: 'B09B8RXJQ4',
@@ -141,7 +159,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 35,
       rating: 4.5,
       reviews: 8934,
-      image: 'https://m.media-amazon.com/images/I/61DfTSu1reL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61DfTSu1reL._AC_SL1500_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B0BXRY4B7Y?tag=${tag}`,
       asin: 'B0BXRY4B7Y',
@@ -157,7 +175,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 38,
       rating: 4.3,
       reviews: 5234,
-      image: 'https://m.media-amazon.com/images/I/61uXWal-QKL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61uXWal-QKL._AC_SL1500_.jpg',
       category: 'home',
       amazonUrl: `https://www.amazon.com/dp/B09W2S2MX5?tag=${tag}`,
       asin: 'B09W2S2MX5',
@@ -171,7 +189,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 50,
       rating: 4.6,
       reviews: 72451,
-      image: 'https://m.media-amazon.com/images/I/71eVcWFxwNL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71eVcWFxwNL._AC_SL1500_.jpg',
       category: 'home',
       amazonUrl: `https://www.amazon.com/dp/B08F54PQMQ?tag=${tag}`,
       asin: 'B08F54PQMQ',
@@ -185,7 +203,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 40,
       rating: 4.5,
       reviews: 34567,
-      image: 'https://m.media-amazon.com/images/I/61gWFSe1xaL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61gWFSe1xaL._AC_SL1500_.jpg',
       category: 'home',
       amazonUrl: `https://www.amazon.com/dp/B09NCYBRFV?tag=${tag}`,
       asin: 'B09NCYBRFV',
@@ -201,7 +219,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 30,
       rating: 4.7,
       reviews: 123456,
-      image: 'https://m.media-amazon.com/images/I/81CRMMg7RQL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/81CRMMg7RQL._AC_SL1500_.jpg',
       category: 'fashion',
       amazonUrl: `https://www.amazon.com/dp/B07P1SFML6?tag=${tag}`,
       asin: 'B07P1SFML6',
@@ -215,7 +233,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 40,
       rating: 4.4,
       reviews: 28934,
-      image: 'https://m.media-amazon.com/images/I/71D0i8by+PL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71D0i8by+PL._AC_SL1500_.jpg',
       category: 'fashion',
       amazonUrl: `https://www.amazon.com/dp/B07PXGQC1Q?tag=${tag}`,
       asin: 'B07PXGQC1Q',
@@ -231,7 +249,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 39,
       rating: 4.5,
       reviews: 67890,
-      image: 'https://m.media-amazon.com/images/I/81jBzD4KFPL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/81jBzD4KFPL._AC_SL1500_.jpg',
       category: 'sports',
       amazonUrl: `https://www.amazon.com/dp/B01AVDVHTI?tag=${tag}`,
       asin: 'B01AVDVHTI',
@@ -245,7 +263,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 33,
       rating: 4.3,
       reviews: 15678,
-      image: 'https://m.media-amazon.com/images/I/71M-W9hs-vL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71M-W9hs-vL._AC_SL1500_.jpg',
       category: 'sports',
       amazonUrl: `https://www.amazon.com/dp/B08R68K88K?tag=${tag}`,
       asin: 'B08R68K88K',
@@ -261,7 +279,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 30,
       rating: 4.9,
       reviews: 45632,
-      image: 'https://m.media-amazon.com/images/I/81WjJgZ8LnL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/81WjJgZ8LnL._AC_SL1500_.jpg',
       category: 'toys',
       amazonUrl: `https://www.amazon.com/dp/B08XWKG6V8?tag=${tag}`,
       asin: 'B08XWKG6V8',
@@ -277,7 +295,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 33,
       rating: 4.7,
       reviews: 98745,
-      image: 'https://m.media-amazon.com/images/I/71J6Y9-n5UL._SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71J6Y9-n5UL._SL1500_.jpg',
       category: 'beauty',
       amazonUrl: `https://www.amazon.com/dp/B0C1GJQKNC?tag=${tag}`,
       asin: 'B0C1GJQKNC',
@@ -285,10 +303,25 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     },
   ]
 
+  const curatedDeals = allDeals
+    .map((deal) => {
+      const imageUrl = normalizeAmazonImageUrl(deal.imageUrl)
+      if (!imageUrl) {
+        console.warn(`[images] curated ${deal.id} - invalid image host`, deal.imageUrl)
+        return null
+      }
+      return { ...deal, imageUrl }
+    })
+    .filter((deal): deal is typeof allDeals[number] => Boolean(deal))
+
   // Filter by category
   let filtered = category === 'all'
-    ? allDeals
-    : allDeals.filter(deal => deal.category === category)
+    ? curatedDeals
+    : curatedDeals.filter(deal => deal.category === category)
+
+  if (filtered.length === 0) {
+    return []
+  }
 
   // Duplicate deals to fill the limit if needed
   while (filtered.length < limit) {
@@ -310,4 +343,24 @@ function detectCategory(title: string): string {
   if (lower.match(/toy|game|puzzle|kids|children|play|lego|building/)) return 'toys'
   if (lower.match(/makeup|beauty|cosmetic|skin|hair|nail|cream|serum/)) return 'beauty'
   return 'electronics'
+}
+
+function normalizeAmazonImageUrl(url?: string): string | null {
+  if (!url) return null
+
+  try {
+    const parsed = new URL(url)
+    if (!ALLOWED_IMAGE_HOSTS.has(parsed.hostname)) {
+      return null
+    }
+
+    if (parsed.protocol !== 'https:') {
+      parsed.protocol = 'https:'
+    }
+
+    return parsed.toString()
+  } catch (error) {
+    console.warn('[images] failed to parse image url', url, error)
+    return null
+  }
 }

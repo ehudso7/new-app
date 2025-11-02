@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { useState, useEffect, useRef } from 'react'
+import type { MouseEvent } from 'react'
+import { safeImageUrl } from '@/utils/safeImageUrl'
 
 interface Deal {
   id: string
@@ -11,7 +12,8 @@ interface Deal {
   discount: number
   rating: number
   reviews: number
-  image: string
+  imageUrl?: string
+  image?: string
   category: string
   amazonUrl: string
   isLightningDeal?: boolean
@@ -28,7 +30,56 @@ export default function DealCard({ deal }: DealCardProps) {
   const [imageError, setImageError] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [viewerCount, setViewerCount] = useState(0)
+  const hasLoggedImageIssue = useRef(false)
+  const rawImageUrl = deal.imageUrl ?? deal.image ?? ''
+  const imageSrc = safeImageUrl(rawImageUrl)
+  const href = deal.amazonUrl
   const savings = deal.originalPrice - deal.currentPrice
+
+  const logImageFailure = (reason: string) => {
+    if (hasLoggedImageIssue.current) return
+    hasLoggedImageIssue.current = true
+
+    if (!deal.asin && !deal.id) return
+
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'deal_image_failure',
+        dealId: deal.id,
+        asin: deal.asin,
+        reason,
+        imageUrl: rawImageUrl,
+      }),
+    }).catch(console.error)
+  }
+
+  const trackDealClick = () => {
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'deal_click',
+        dealId: deal.id,
+        category: deal.category,
+        price: deal.currentPrice,
+      }),
+    }).catch(console.error)
+  }
+
+  useEffect(() => {
+    setImageError(false)
+    hasLoggedImageIssue.current = false
+  }, [rawImageUrl, deal.id])
+
+  useEffect(() => {
+    if (!rawImageUrl) {
+      logImageFailure('missing_image_url')
+    } else if (!imageSrc) {
+      logImageFailure('invalid_image_host')
+    }
+  }, [imageSrc, rawImageUrl])
 
   // Check if deal is already saved on mount
   useEffect(() => {
@@ -83,28 +134,7 @@ export default function DealCard({ deal }: DealCardProps) {
     return `${hours}h ${minutes}m ${seconds}s`
   }
 
-  const handleClick = async () => {
-    // Track click event for analytics
-    try {
-      await fetch('/api/analytics/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: 'deal_click',
-          dealId: deal.id,
-          category: deal.category,
-          price: deal.currentPrice,
-        }),
-      })
-    } catch (error) {
-      console.error('Analytics error:', error)
-    }
-
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
-  }
-
-  const handleSave = (e: React.MouseEvent) => {
+  const handleSave = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
 
     // Save to localStorage
@@ -134,7 +164,7 @@ export default function DealCard({ deal }: DealCardProps) {
     }).catch(console.error)
   }
 
-  const handleShare = async (e: React.MouseEvent) => {
+  const handleShare = async (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
 
     const shareData = {
@@ -196,32 +226,45 @@ export default function DealCard({ deal }: DealCardProps) {
         )}
 
         {/* Real Product Image */}
-        {deal.image && !imageError ? (
-          <Image
-            src={deal.image}
-            alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
-            onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
-          />
-        ) : (
-          <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
-            onClick={handleClick}
-          >
-            {getCategoryEmoji(deal.category)}
-          </div>
-        )}
+        <a
+          href={href}
+          target="_blank"
+          rel="nofollow noopener sponsored"
+          onClick={trackDealClick}
+          className="relative block h-full w-full"
+        >
+          {imageSrc && !imageError ? (
+            <img
+              src={imageSrc}
+              alt={deal.title}
+              loading="lazy"
+              width={320}
+              height={160}
+              className="mx-auto h-full w-full object-contain p-4 transition-transform duration-200 hover:scale-105"
+              onError={() => {
+                setImageError(true)
+                logImageFailure('load_error')
+              }}
+            />
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-gray-500">
+              Image unavailable
+            </div>
+          )}
+        </a>
       </div>
 
       <div className="p-4">
-        <h3
-          className="font-semibold text-gray-800 line-clamp-2 h-12 mb-2 cursor-pointer hover:text-primary"
-          onClick={handleClick}
-        >
-          {deal.title}
+        <h3 className="font-semibold text-gray-800 line-clamp-2 h-12 mb-2">
+          <a
+            href={href}
+            target="_blank"
+            rel="nofollow noopener sponsored"
+            onClick={trackDealClick}
+            className="block hover:text-primary transition-colors"
+          >
+            {deal.title}
+          </a>
         </h3>
 
         <div className="flex items-center gap-2 mb-3">
@@ -260,12 +303,15 @@ export default function DealCard({ deal }: DealCardProps) {
           </div>
         )}
 
-        <button
-          onClick={handleClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
+        <a
+          href={href}
+          target="_blank"
+          rel="nofollow noopener sponsored"
+          onClick={trackDealClick}
+          className="block w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold text-center hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105"
         >
           View on Amazon →
-        </button>
+        </a>
 
         <div className="mt-2 flex gap-2">
           <button
@@ -288,16 +334,4 @@ export default function DealCard({ deal }: DealCardProps) {
       </div>
     </div>
   )
-}
-
-function getCategoryEmoji(category: string): string {
-  const emojis: { [key: string]: string } = {
-    electronics: '📱',
-    home: '🏠',
-    fashion: '👔',
-    sports: '⚽',
-    toys: '🧸',
-    beauty: '💄',
-  }
-  return emojis[category] || '🎁'
 }
