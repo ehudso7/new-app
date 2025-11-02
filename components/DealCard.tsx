@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import { safeImageUrl } from '@/utils/imageHelper'
 
 interface Deal {
   id: string
@@ -195,10 +196,10 @@ export default function DealCard({ deal }: DealCardProps) {
           </div>
         )}
 
-        {/* Real Product Image */}
+        {/* Real Product Image via Proxy */}
         {deal.image && !imageError ? (
           <Image
-            src={deal.image}
+            src={safeImageUrl(deal.image) || deal.image}
             alt={deal.title}
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
@@ -208,10 +209,10 @@ export default function DealCard({ deal }: DealCardProps) {
           />
         ) : (
           <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
+            className="w-full h-full flex items-center justify-center cursor-pointer bg-gray-50"
             onClick={handleClick}
           >
-            {getCategoryEmoji(deal.category)}
+            <span className="text-sm text-gray-500">Image unavailable</span>
           </div>
         )}
       </div>
@@ -290,14 +291,3 @@ export default function DealCard({ deal }: DealCardProps) {
   )
 }
 
-function getCategoryEmoji(category: string): string {
-  const emojis: { [key: string]: string } = {
-    electronics: '📱',
-    home: '🏠',
-    fashion: '👔',
-    sports: '⚽',
-    toys: '🧸',
-    beauty: '💄',
-  }
-  return emojis[category] || '🎁'
-}
