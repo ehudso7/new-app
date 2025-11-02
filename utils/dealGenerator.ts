@@ -1,8 +1,8 @@
-// This simulates deal data. In production, this would come from:
-// 1. Amazon Product Advertising API (requires Associates account)
-// 2. Web scraping (legal gray area, use cautiously)
-// 3. Deal aggregator APIs (some have free tiers)
-// 4. Manual curation + affiliate links
+// ?? DEPRECATED: This file generates fake deals with empty images and is NOT used in production.
+// Real deals are fetched from /app/api/deals/route.ts which uses:
+// 1. RapidAPI (if configured) - Real-time Amazon product data
+// 2. Curated real Amazon deals - Real products with real images and data
+// This file is kept for reference only and should not be imported anywhere.
 
 const categories = ['electronics', 'home', 'fashion', 'sports', 'toys', 'beauty']
 

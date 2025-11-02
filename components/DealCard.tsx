@@ -196,20 +196,24 @@ export default function DealCard({ deal }: DealCardProps) {
         )}
 
         {/* Real Product Image */}
-        {deal.image && !imageError ? (
+        {deal.image && deal.image.trim() !== '' && deal.image.startsWith('http') && !imageError ? (
           <Image
             src={deal.image}
             alt={deal.title}
             fill
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
-            onError={() => setImageError(true)}
+            onError={() => {
+              console.error('Image failed to load:', deal.image)
+              setImageError(true)
+            }}
             unoptimized
           />
         ) : (
           <div
-            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
+            className="w-full h-full flex items-center justify-center text-6xl cursor-pointer bg-gray-100"
             onClick={handleClick}
+            title="Image unavailable - Click to view product"
           >
             {getCategoryEmoji(deal.category)}
           </div>
