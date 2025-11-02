@@ -37,6 +37,10 @@ export default function DealCard({ deal }: DealCardProps) {
     setIsSaved(isAlreadySaved)
   }, [deal.id])
 
+  useEffect(() => {
+    setImageError(false)
+  }, [deal.image])
+
   // Lightning deal countdown timer (for demo: random time between 1-6 hours)
   useEffect(() => {
     if (deal.isLightningDeal) {
@@ -204,7 +208,6 @@ export default function DealCard({ deal }: DealCardProps) {
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
             onError={() => setImageError(true)}
-            unoptimized
           />
         ) : (
           <div

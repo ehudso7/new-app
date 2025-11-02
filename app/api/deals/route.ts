@@ -53,6 +53,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       'X-RapidAPI-Key': apiKey,
       'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com',
     },
+    cache: 'no-store',
   })
 
   if (!response.ok) {
@@ -62,27 +63,121 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   const data = await response.json()
 
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  return (data.data?.products || [])
+    .map((item: any, index: number) => {
+      const image = getProductImage(item)
+      const amazonUrl = buildAmazonUrl(item, tag)
+      const price = parsePrice(
+        item.product_price ??
+          item.offer_current_price ??
+          item.offer_price ??
+          item.product_minimum_price
+      ) ?? 0
+      const originalPrice =
+        parsePrice(
+          item.product_original_price ??
+            item.offer_original_price ??
+            item.product_list_price ??
+            item.product_maximum_price
+        ) ?? (price > 0 ? price * 1.5 : 0)
 
-    return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
-      originalPrice: originalPrice,
-      currentPrice: price,
-      discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
-      isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      if (!image || !amazonUrl || price <= 0 || originalPrice <= 0) {
+        return null
+      }
+
+      const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0
+
+      if (discount < 10) {
+        return null
+      }
+
+      const asin = item.asin || item.product_asin || item.parent_asin
+
+      return {
+        id: asin || item.sku || item.product_id || `deal-${Date.now()}-${index}`,
+        title: item.product_title || item.title || 'Amazon Product',
+        originalPrice,
+        currentPrice: price,
+        discount,
+        rating: parseRating(item.product_star_rating ?? item.product_rating ?? item.rating),
+        reviews: parseReviews(item.product_num_ratings ?? item.product_reviews_count ?? item.reviews_count),
+        image,
+        category: detectCategory(item.product_title || item.title || ''),
+        amazonUrl,
+        asin,
+        isLightningDeal: discount > 50,
+        stockStatus: item.is_prime || item.prime ? 'Prime Eligible' : undefined,
+      }
+    })
+    .filter((deal: any) => Boolean(deal))
+    .slice(0, limit)
+}
+
+function parsePrice(value: any): number | null {
+  if (typeof value === 'number' && !isNaN(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const numeric = parseFloat(value.replace(/[^0-9.]/g, ''))
+    return isNaN(numeric) ? null : numeric
+  }
+  return null
+}
+
+function parseRating(value: any): number {
+  const parsed = parseFloat(typeof value === 'string' ? value.replace(/[^0-9.]/g, '') : value)
+  if (isNaN(parsed) || parsed <= 0) {
+    return 4.5
+  }
+  return Math.min(5, Math.max(1, parsed))
+}
+
+function parseReviews(value: any): number {
+  const parsed = parseInt(typeof value === 'string' ? value.replace(/[^0-9]/g, '') : value)
+  if (isNaN(parsed) || parsed < 0) {
+    return 100
+  }
+  return parsed
+}
+
+function getProductImage(item: any): string | null {
+  const potentialImages = [
+    item.product_photo,
+    item.product_photo_url,
+    item.product_main_image_url,
+    item.product_image,
+    Array.isArray(item.product_images) ? item.product_images[0] : null,
+    Array.isArray(item.product_photos) ? item.product_photos[0] : null,
+    item.image,
+    Array.isArray(item.images) ? item.images[0] : null,
+  ]
+
+  const image = potentialImages.find((src) => typeof src === 'string' && src.startsWith('http'))
+  return image || null
+}
+
+function buildAmazonUrl(item: any, tag: string): string | null {
+  const asin = item.asin || item.product_asin || item.parent_asin
+  const rawUrl =
+    item.product_url ||
+    item.product_detail_url ||
+    item.product_link ||
+    (asin ? `https://www.amazon.com/dp/${asin}` : null)
+
+  if (!rawUrl) {
+    return null
+  }
+
+  try {
+    const url = new URL(rawUrl, 'https://www.amazon.com')
+    if (tag) {
+      url.searchParams.set('tag', tag)
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+    return url.toString()
+  } catch (error) {
+    console.error('Invalid Amazon URL from API:', rawUrl, error)
+    return null
+  }
 }
 
 // Curated real Amazon deals with actual product images and data
