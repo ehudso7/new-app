@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 
 interface Deal {
   id: string
@@ -35,7 +34,12 @@ export default function DealCard({ deal }: DealCardProps) {
     const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
     const isAlreadySaved = saved.some((d: any) => d.id === deal.id)
     setIsSaved(isAlreadySaved)
-  }, [deal.id])
+    
+    // Debug: log image URL to help troubleshoot
+    if (deal.image) {
+      console.log('Deal image URL:', deal.image)
+    }
+  }, [deal.id, deal.image])
 
   // Lightning deal countdown timer (for demo: random time between 1-6 hours)
   useEffect(() => {
@@ -84,6 +88,13 @@ export default function DealCard({ deal }: DealCardProps) {
   }
 
   const handleClick = async () => {
+    // Validate Amazon URL before opening
+    if (!deal.amazonUrl || !deal.amazonUrl.startsWith('https://www.amazon.com')) {
+      console.error('Invalid Amazon URL:', deal.amazonUrl)
+      alert('Sorry, this product link is currently unavailable. Please try another deal.')
+      return
+    }
+
     // Track click event for analytics
     try {
       await fetch('/api/analytics/track', {
@@ -100,8 +111,13 @@ export default function DealCard({ deal }: DealCardProps) {
       console.error('Analytics error:', error)
     }
 
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    // Open Amazon link in new tab with proper attributes
+    const newWindow = window.open(deal.amazonUrl, '_blank', 'noopener,noreferrer')
+    if (!newWindow) {
+      console.error('Failed to open window. Popup might be blocked.')
+      // Fallback: navigate in same tab
+      window.location.href = deal.amazonUrl
+    }
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -197,19 +213,23 @@ export default function DealCard({ deal }: DealCardProps) {
 
         {/* Real Product Image */}
         {deal.image && !imageError ? (
-          <Image
+          <img
             src={deal.image}
             alt={deal.title}
-            fill
-            className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
+            className="w-full h-full object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
-            onError={() => setImageError(true)}
-            unoptimized
+            onError={(e) => {
+              console.error('Failed to load image:', deal.image)
+              setImageError(true)
+            }}
+            loading="lazy"
+            crossOrigin="anonymous"
           />
         ) : (
           <div
             className="w-full h-full flex items-center justify-center text-6xl cursor-pointer"
             onClick={handleClick}
+            title={imageError ? 'Image failed to load' : 'No image available'}
           >
             {getCategoryEmoji(deal.category)}
           </div>
