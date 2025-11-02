@@ -290,14 +290,19 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     ? allDeals
     : allDeals.filter(deal => deal.category === category)
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
+  // Duplicate deals to fill the limit if needed (but keep original IDs and URLs)
+  const originalLength = filtered.length
+  while (filtered.length < limit && originalLength > 0) {
+    const needMore = limit - filtered.length
+    const toDuplicate = filtered.slice(0, Math.min(needMore, originalLength))
+    filtered = [...filtered, ...toDuplicate]
   }
 
+  // Return deals with unique display IDs but preserve original ASIN-based IDs for links
   return filtered.slice(0, limit).map((deal, index) => ({
     ...deal,
-    id: `${deal.id}-${index}`,
+    // Keep original ASIN for the amazonUrl, but add index to id for React key uniqueness
+    id: index < originalLength ? deal.id : `${deal.asin}-dup-${index}`,
   }))
 }
 
