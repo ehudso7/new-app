@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {

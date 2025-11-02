@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // This endpoint is called by cron jobs or manually from admin to refresh deals
 // Vercel Cron: https://vercel.com/docs/cron-jobs
 
