@@ -53,6 +53,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       'X-RapidAPI-Key': apiKey,
       'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com',
     },
+    cache: 'no-store',
   })
 
   if (!response.ok) {
@@ -61,10 +62,24 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
 
   const data = await response.json()
 
+  const productResults = data.data?.products
+    || data.data?.product_results
+    || data.data?.results
+    || data.data?.search_results
+    || []
+
+  if (!Array.isArray(productResults) || productResults.length === 0) {
+    throw new Error('RapidAPI returned no products')
+  }
+
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  return productResults.slice(0, limit).map((item: any) => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
+    const originalPrice = parseFloat(
+      item.product_original_price?.replace(/[^0-9.]/g, '')
+      || item.product_minimum_offer_price?.replace(/[^0-9.]/g, '')
+      || String(price * 1.5)
+    )
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
 
     return {
