@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 // Analytics tracking endpoint
 export async function POST(request: Request) {
   try {
@@ -23,10 +26,11 @@ export async function POST(request: Request) {
     // - Custom database
 
     // Example: Google Analytics 4 (if you have NEXT_PUBLIC_GA_ID)
+    // Server-side tracking can use Measurement Protocol
     const gaId = process.env.NEXT_PUBLIC_GA_ID
-    if (gaId && typeof window !== 'undefined') {
+    if (gaId) {
       // Client-side GA tracking happens in the component
-      // Server-side tracking can use Measurement Protocol
+      // Server-side tracking can use Measurement Protocol API
     }
 
     return NextResponse.json({ success: true })

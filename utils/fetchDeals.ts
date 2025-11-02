@@ -18,11 +18,13 @@ export async function fetchDeals(category: string = 'all', limit: number = 24) {
 
 export async function refreshDeals() {
   try {
+    // Note: This should only be called from server-side or with proper authentication
+    // Remove Authorization header as this is a client-side utility
     const response = await fetch('/api/deals/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET}`,
+        // Authorization should be handled server-side or via proper auth mechanism
       },
     })
 
