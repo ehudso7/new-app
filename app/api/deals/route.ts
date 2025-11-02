@@ -1,5 +1,22 @@
 import { NextResponse } from 'next/server'
 
+// Deal type definition
+type Deal = {
+  id: string
+  title: string
+  originalPrice: number
+  currentPrice: number
+  discount: number
+  rating: number
+  reviews: number
+  image: string
+  category: string
+  amazonUrl: string
+  asin?: string
+  isLightningDeal: boolean
+  stockStatus?: string
+}
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -24,7 +41,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function fetchRealDeals(category: string, limit: number) {
+async function fetchRealDeals(category: string, limit: number): Promise<Deal[]> {
   const rapidApiKey = process.env.RAPIDAPI_KEY
   const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
 
@@ -41,7 +58,7 @@ async function fetchRealDeals(category: string, limit: number) {
   return getCuratedRealDeals(category, limit, partnerTag)
 }
 
-async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
+async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string): Promise<Deal[]> {
   const searchTerm = category === 'all' ? 'deals' : category
 
   // Using Amazon Data Scraper API from RapidAPI
@@ -62,7 +79,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   const data = await response.json()
 
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  return (data.data?.products || []).slice(0, limit).map((item: any): Deal => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
@@ -82,11 +99,11 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       isLightningDeal: discount > 50,
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: Deal) => deal.image && deal.discount >= 20)
 }
 
 // Curated real Amazon deals with actual product images and data
-function getCuratedRealDeals(category: string, limit: number, tag: string) {
+function getCuratedRealDeals(category: string, limit: number, tag: string): Deal[] {
   const allDeals = [
     // Electronics - Real Amazon bestsellers
     {
