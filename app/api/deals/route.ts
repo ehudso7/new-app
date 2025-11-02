@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
