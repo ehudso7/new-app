@@ -1,5 +1,22 @@
 import { NextResponse } from 'next/server'
 
+// Deal type definition
+interface Deal {
+  id: string
+  title: string
+  originalPrice: number
+  currentPrice: number
+  discount: number
+  rating: number
+  reviews: number
+  image: string
+  category: string
+  amazonUrl: string
+  asin: string
+  isLightningDeal: boolean
+  stockStatus?: string
+}
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -24,7 +41,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function fetchRealDeals(category: string, limit: number) {
+async function fetchRealDeals(category: string, limit: number): Promise<Deal[]> {
   const rapidApiKey = process.env.RAPIDAPI_KEY
   const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
 
@@ -38,7 +55,7 @@ async function fetchRealDeals(category: string, limit: number) {
           const fallbackDeals = getCuratedRealDeals(category, limit, partnerTag)
           const combined = [
             ...rapidDeals,
-            ...fallbackDeals.filter((fallbackDeal) => !rapidDeals.some((deal) => deal.id === fallbackDeal.id)),
+            ...fallbackDeals.filter((fallbackDeal) => !rapidDeals.some((deal: Deal) => deal.id === fallbackDeal.id)),
           ]
           return combined.slice(0, limit)
         }
@@ -56,7 +73,7 @@ async function fetchRealDeals(category: string, limit: number) {
   return getCuratedRealDeals(category, limit, partnerTag)
 }
 
-async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
+async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string): Promise<Deal[]> {
   const searchTerm = category === 'all' ? 'deals' : category
 
   // Using Amazon Data Scraper API from RapidAPI
@@ -101,7 +118,7 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
 }
 
 // Curated real Amazon deals with actual product images and data
-function getCuratedRealDeals(category: string, limit: number, tag: string) {
+function getCuratedRealDeals(category: string, limit: number, tag: string): Deal[] {
   const allDeals = [
     // Electronics - Real Amazon bestsellers
     {
