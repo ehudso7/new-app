@@ -100,8 +100,11 @@ export default function DealCard({ deal }: DealCardProps) {
       console.error('Analytics error:', error)
     }
 
-    // Open Amazon link in new tab
-    window.open(deal.amazonUrl, '_blank')
+    // Use canonical redirect route for reliable Amazon links
+    const amazonLink = deal.asin 
+      ? `/api/out/amazon/${deal.asin}`
+      : deal.amazonUrl // Fallback to direct URL if ASIN missing
+    window.open(amazonLink, '_blank')
   }
 
   const handleSave = (e: React.MouseEvent) => {
@@ -137,10 +140,15 @@ export default function DealCard({ deal }: DealCardProps) {
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation()
 
+    // Use canonical redirect route for reliable Amazon links
+    const amazonLink = deal.asin 
+      ? `${window.location.origin}/api/out/amazon/${deal.asin}`
+      : deal.amazonUrl // Fallback to direct URL if ASIN missing
+
     const shareData = {
       title: deal.title,
       text: `${deal.discount}% off! Was $${deal.originalPrice}, now $${deal.currentPrice}`,
-      url: deal.amazonUrl,
+      url: amazonLink,
     }
 
     try {
@@ -149,7 +157,7 @@ export default function DealCard({ deal }: DealCardProps) {
         await navigator.share(shareData)
       } else {
         // Fallback: Copy to clipboard
-        await navigator.clipboard.writeText(deal.amazonUrl)
+        await navigator.clipboard.writeText(amazonLink)
         alert('Link copied to clipboard!')
       }
 
