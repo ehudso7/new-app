@@ -87,9 +87,9 @@ export function generateDeals() {
         originalPrice: Math.round(originalPrice * 100) / 100,
         currentPrice: Math.round(currentPrice * 100) / 100,
         discount,
-        rating: (Math.random() * 1.5 + 3.5).toFixed(1),
+        rating: parseFloat((Math.random() * 1.5 + 3.5).toFixed(1)),
         reviews: Math.floor(Math.random() * 10000) + 100,
-        image: '', // Would be actual Amazon image URL
+        imageUrl: '', // Would be actual Amazon image URL
         category,
         // Amazon Associates affiliate link with your tag
         amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(template)}&tag=dealsplus077-20`,

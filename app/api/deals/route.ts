@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { normalizeAmazonImageUrl } from '@/utils/amazonImages'
+
 // Real Amazon deals with actual product images
 export async function GET(request: Request) {
   try {
@@ -44,7 +46,6 @@ async function fetchRealDeals(category: string, limit: number) {
 async function fetchFromRapidAPI(category: string, limit: number, apiKey: string, tag: string) {
   const searchTerm = category === 'all' ? 'deals' : category
 
-  // Using Amazon Data Scraper API from RapidAPI
   const url = `https://real-time-amazon-data.p.rapidapi.com/search?query=${encodeURIComponent(searchTerm)}&page=1&country=US&sort_by=RELEVANCE&product_condition=ALL`
 
   const response = await fetch(url, {
@@ -60,44 +61,68 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   }
 
   const data = await response.json()
+  const products: any[] = Array.isArray(data.data?.products) ? data.data.products : []
 
-  // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  const transformed = products
+    .map((item: any) => {
+      const asin = typeof item.asin === 'string' ? item.asin.trim() : ''
+      const imageUrl = normalizeAmazonImageUrl(item.product_photo)
 
-    return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
-      originalPrice: originalPrice,
-      currentPrice: price,
-      discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
-      isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
-    }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+      if (!asin) {
+        console.warn('[images] missing asin for product:', item.product_title)
+        return null
+      }
+
+      if (!imageUrl) {
+        console.warn(`[images] missing or invalid image for ${asin}:`, item.product_photo)
+        return null
+      }
+
+      const parsedPrice = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
+      const parsedOriginal = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || '0')
+
+      const currentPrice = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : Math.max(parsedOriginal * 0.7, 0)
+      const originalPrice = Number.isFinite(parsedOriginal) && parsedOriginal > 0 ? parsedOriginal : currentPrice * 1.5
+      const discount = originalPrice > 0 && currentPrice > 0
+        ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
+        : 0
+
+      const rating = parseFloat(item.product_star_rating || '4.5')
+      const reviews = parseInt(item.product_num_ratings || '100', 10)
+
+      return {
+        id: asin,
+        title: item.product_title || 'Amazon Product',
+        originalPrice: parseFloat(originalPrice.toFixed(2)),
+        currentPrice: parseFloat(currentPrice.toFixed(2)),
+        discount,
+        rating: Number.isFinite(rating) ? parseFloat(rating.toFixed(1)) : 4.5,
+        reviews: Number.isFinite(reviews) ? reviews : 100,
+        imageUrl,
+        category: detectCategory(item.product_title),
+        amazonUrl: `https://www.amazon.com/dp/${asin}?tag=${tag}`,
+        asin,
+        isLightningDeal: discount > 50,
+        stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      }
+    })
+    .filter((deal: any) => deal && deal.discount >= 20)
+
+  return transformed.slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data
 function getCuratedRealDeals(category: string, limit: number, tag: string) {
-  const allDeals = [
-    // Electronics - Real Amazon bestsellers
+  const curatedDealsSource = [
     {
       id: 'B0BN3K4C7K',
       title: 'Apple AirPods Pro (2nd Generation) Wireless Ear Buds with USB-C Charging',
-      originalPrice: 249.00,
+      originalPrice: 249.0,
       currentPrice: 189.99,
       discount: 24,
       rating: 4.7,
       reviews: 85234,
-      image: 'https://m.media-amazon.com/images/I/61f1YfTkTDL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61f1YfTkTDL._AC_SL1500_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B0BN3K4C7K?tag=${tag}`,
       asin: 'B0BN3K4C7K',
@@ -112,7 +137,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 50,
       rating: 4.6,
       reviews: 45123,
-      image: 'https://m.media-amazon.com/images/I/51TjJOTfslL._AC_SL1000_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/51TjJOTfslL._AC_SL1000_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B0CHXDYX39?tag=${tag}`,
       asin: 'B0CHXDYX39',
@@ -127,7 +152,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 40,
       rating: 4.6,
       reviews: 12847,
-      image: 'https://m.media-amazon.com/images/I/61R7JYKtASL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61R7JYKtASL._AC_SL1500_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B09B8RXJQ4?tag=${tag}`,
       asin: 'B09B8RXJQ4',
@@ -141,14 +166,12 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 35,
       rating: 4.5,
       reviews: 8934,
-      image: 'https://m.media-amazon.com/images/I/61DfTSu1reL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61DfTSu1reL._AC_SL1500_.jpg',
       category: 'electronics',
       amazonUrl: `https://www.amazon.com/dp/B0BXRY4B7Y?tag=${tag}`,
       asin: 'B0BXRY4B7Y',
       isLightningDeal: false,
     },
-
-    // Home & Kitchen - Real products
     {
       id: 'B09W2S2MX5',
       title: 'iRobot Roomba j7+ (7550) Self-Emptying Robot Vacuum',
@@ -157,7 +180,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 38,
       rating: 4.3,
       reviews: 5234,
-      image: 'https://m.media-amazon.com/images/I/61uXWal-QKL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61uXWal-QKL._AC_SL1500_.jpg',
       category: 'home',
       amazonUrl: `https://www.amazon.com/dp/B09W2S2MX5?tag=${tag}`,
       asin: 'B09W2S2MX5',
@@ -171,7 +194,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 50,
       rating: 4.6,
       reviews: 72451,
-      image: 'https://m.media-amazon.com/images/I/71eVcWFxwNL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71eVcWFxwNL._AC_SL1500_.jpg',
       category: 'home',
       amazonUrl: `https://www.amazon.com/dp/B08F54PQMQ?tag=${tag}`,
       asin: 'B08F54PQMQ',
@@ -185,14 +208,12 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 40,
       rating: 4.5,
       reviews: 34567,
-      image: 'https://m.media-amazon.com/images/I/61gWFSe1xaL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/61gWFSe1xaL._AC_SL1500_.jpg',
       category: 'home',
       amazonUrl: `https://www.amazon.com/dp/B09NCYBRFV?tag=${tag}`,
       asin: 'B09NCYBRFV',
       isLightningDeal: false,
     },
-
-    // Fashion - Real products
     {
       id: 'B07P1SFML6',
       title: 'Carhartt Mens Knit Cuffed Beanie',
@@ -201,7 +222,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 30,
       rating: 4.7,
       reviews: 123456,
-      image: 'https://m.media-amazon.com/images/I/81CRMMg7RQL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/81CRMMg7RQL._AC_SL1500_.jpg',
       category: 'fashion',
       amazonUrl: `https://www.amazon.com/dp/B07P1SFML6?tag=${tag}`,
       asin: 'B07P1SFML6',
@@ -210,19 +231,17 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     {
       id: 'B07PXGQC1Q',
       title: 'adidas Mens Cloudfoam Pure 2.0 Running Shoe',
-      originalPrice: 75.00,
+      originalPrice: 75.0,
       currentPrice: 44.95,
       discount: 40,
       rating: 4.4,
       reviews: 28934,
-      image: 'https://m.media-amazon.com/images/I/71D0i8by+PL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71D0i8by+PL._AC_SL1500_.jpg',
       category: 'fashion',
       amazonUrl: `https://www.amazon.com/dp/B07PXGQC1Q?tag=${tag}`,
       asin: 'B07PXGQC1Q',
       isLightningDeal: false,
     },
-
-    // Sports & Fitness
     {
       id: 'B01AVDVHTI',
       title: 'AmazonBasics 1/2-Inch Extra Thick Exercise Yoga Mat',
@@ -231,7 +250,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 39,
       rating: 4.5,
       reviews: 67890,
-      image: 'https://m.media-amazon.com/images/I/81jBzD4KFPL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/81jBzD4KFPL._AC_SL1500_.jpg',
       category: 'sports',
       amazonUrl: `https://www.amazon.com/dp/B01AVDVHTI?tag=${tag}`,
       asin: 'B01AVDVHTI',
@@ -245,14 +264,12 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 33,
       rating: 4.3,
       reviews: 15678,
-      image: 'https://m.media-amazon.com/images/I/71M-W9hs-vL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71M-W9hs-vL._AC_SL1500_.jpg',
       category: 'sports',
       amazonUrl: `https://www.amazon.com/dp/B08R68K88K?tag=${tag}`,
       asin: 'B08R68K88K',
       isLightningDeal: false,
     },
-
-    // Toys & Games
     {
       id: 'B08XWKG6V8',
       title: 'LEGO Star Wars The Mandalorian The Child Building Kit',
@@ -261,14 +278,12 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 30,
       rating: 4.9,
       reviews: 45632,
-      image: 'https://m.media-amazon.com/images/I/81WjJgZ8LnL._AC_SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/81WjJgZ8LnL._AC_SL1500_.jpg',
       category: 'toys',
       amazonUrl: `https://www.amazon.com/dp/B08XWKG6V8?tag=${tag}`,
       asin: 'B08XWKG6V8',
       isLightningDeal: false,
     },
-
-    // Beauty
     {
       id: 'B0C1GJQKNC',
       title: 'CeraVe Moisturizing Cream | Body and Face Moisturizer',
@@ -277,7 +292,7 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
       discount: 33,
       rating: 4.7,
       reviews: 98745,
-      image: 'https://m.media-amazon.com/images/I/71J6Y9-n5UL._SL1500_.jpg',
+      imageUrl: 'https://m.media-amazon.com/images/I/71J6Y9-n5UL._SL1500_.jpg',
       category: 'beauty',
       amazonUrl: `https://www.amazon.com/dp/B0C1GJQKNC?tag=${tag}`,
       asin: 'B0C1GJQKNC',
@@ -285,17 +300,36 @@ function getCuratedRealDeals(category: string, limit: number, tag: string) {
     },
   ]
 
-  // Filter by category
-  let filtered = category === 'all'
-    ? allDeals
-    : allDeals.filter(deal => deal.category === category)
+  const curatedDeals = curatedDealsSource
+    .map((deal) => {
+      const sanitizedImage = normalizeAmazonImageUrl(deal.imageUrl)
+      if (!sanitizedImage) {
+        console.warn(`[images] invalid curated image for ${deal.asin ?? deal.id}:`, deal.imageUrl)
+        return null
+      }
 
-  // Duplicate deals to fill the limit if needed
-  while (filtered.length < limit) {
-    filtered = [...filtered, ...filtered]
+      return {
+        ...deal,
+        imageUrl: sanitizedImage,
+      }
+    })
+    .filter((deal): deal is typeof curatedDealsSource[number] & { imageUrl: string } => !!deal)
+
+  const filteredByCategory = category === 'all'
+    ? curatedDeals
+    : curatedDeals.filter((deal) => deal.category === category)
+
+  if (!filteredByCategory.length) {
+    console.warn(`[images] no curated deals available for category ${category}`)
+    return []
   }
 
-  return filtered.slice(0, limit).map((deal, index) => ({
+  let pool = [...filteredByCategory]
+  while (pool.length < limit) {
+    pool = [...pool, ...filteredByCategory]
+  }
+
+  return pool.slice(0, limit).map((deal, index) => ({
     ...deal,
     id: `${deal.id}-${index}`,
   }))
