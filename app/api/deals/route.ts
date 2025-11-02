@@ -31,10 +31,27 @@ async function fetchRealDeals(category: string, limit: number) {
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
-    } catch (error) {
-      console.error('RapidAPI error, falling back to curated deals:', error)
+      console.log(`[RapidAPI] Attempting to fetch deals for category: ${category}, limit: ${limit}`)
+      const deals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      
+      if (deals && deals.length > 0) {
+        console.log(`[RapidAPI] Successfully fetched ${deals.length} deals`)
+        return deals
+      } else {
+        console.warn('[RapidAPI] API returned empty result, falling back to curated deals')
+      }
+    } catch (error: any) {
+      console.error('[RapidAPI] Error details:', {
+        message: error.message,
+        status: error.status,
+        category,
+        limit,
+      })
+      console.error('[RapidAPI] Full error:', error)
+      console.log('[RapidAPI] Falling back to curated deals')
     }
+  } else {
+    console.log('[RapidAPI] No API key configured, using curated deals')
   }
 
   // Fallback to curated real Amazon deals with real images
@@ -47,6 +64,8 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
   // Using Amazon Data Scraper API from RapidAPI
   const url = `https://real-time-amazon-data.p.rapidapi.com/search?query=${encodeURIComponent(searchTerm)}&page=1&country=US&sort_by=RELEVANCE&product_condition=ALL`
 
+  console.log(`[RapidAPI] Fetching from: ${url}`)
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -55,34 +74,97 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
     },
   })
 
-  if (!response.ok) {
-    throw new Error(`RapidAPI error: ${response.status}`)
+  const responseText = await response.text()
+  let data: any
+
+  try {
+    data = JSON.parse(responseText)
+  } catch (parseError) {
+    console.error('[RapidAPI] Failed to parse JSON response:', responseText.substring(0, 500))
+    throw new Error(`Invalid JSON response from RapidAPI: ${response.status}`)
   }
 
-  const data = await response.json()
+  // Check for API errors in response
+  if (data.message && data.message.includes('Invalid API key')) {
+    throw new Error('Invalid RapidAPI key. Please check your RAPIDAPI_KEY environment variable.')
+  }
+
+  if (data.message && data.message.includes('quota')) {
+    throw new Error('RapidAPI quota exceeded. Please check your plan limits.')
+  }
+
+  if (!response.ok) {
+    const errorMsg = data.message || `HTTP ${response.status}`
+    console.error('[RapidAPI] Error response:', data)
+    throw new Error(`RapidAPI error: ${errorMsg} (Status: ${response.status})`)
+  }
+
+  // Handle different possible response structures
+  let products: any[] = []
+  
+  if (data.data?.products) {
+    products = data.data.products
+  } else if (data.products) {
+    products = data.products
+  } else if (Array.isArray(data)) {
+    products = data
+  } else if (data.results) {
+    products = data.results
+  } else {
+    console.warn('[RapidAPI] Unexpected response structure:', JSON.stringify(data).substring(0, 500))
+    throw new Error('Unexpected response structure from RapidAPI')
+  }
+
+  if (!products || products.length === 0) {
+    console.warn('[RapidAPI] No products found in response')
+    return []
+  }
+
+  console.log(`[RapidAPI] Found ${products.length} products, processing...`)
 
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
-    const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
-    const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
-    const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+  const transformedDeals = products.slice(0, limit * 2).map((item: any) => {
+    // Try multiple possible field names for price
+    const priceStr = item.product_price || item.price || item.current_price || item.list_price || '0'
+    const originalPriceStr = item.product_original_price || item.original_price || item.list_price || priceStr
+    
+    const price = parseFloat(String(priceStr).replace(/[^0-9.]/g, '') || '0')
+    const originalPrice = parseFloat(String(originalPriceStr).replace(/[^0-9.]/g, '') || price * 1.5)
+    const discount = originalPrice > 0 && price > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
+
+    // Try multiple possible field names for other fields
+    const asin = item.asin || item.product_id || item.id
+    const title = item.product_title || item.title || item.name || 'Amazon Product'
+    const image = item.product_photo || item.image || item.product_image || item.thumbnail || ''
+    const rating = parseFloat(item.product_star_rating || item.rating || item.star_rating || '4.5')
+    const reviews = parseInt(item.product_num_ratings || item.reviews || item.num_ratings || '100')
+    const isPrime = item.is_prime || item.prime || false
+
+    if (!asin) {
+      console.warn('[RapidAPI] Product missing ASIN:', item)
+      return null
+    }
 
     return {
-      id: item.asin || `deal-${Date.now()}-${Math.random()}`,
-      title: item.product_title || 'Amazon Product',
+      id: asin,
+      title: title,
       originalPrice: originalPrice,
       currentPrice: price,
       discount: discount,
-      rating: parseFloat(item.product_star_rating || '4.5'),
-      reviews: parseInt(item.product_num_ratings || '100'),
-      image: item.product_photo || '',
-      category: detectCategory(item.product_title),
-      amazonUrl: `https://www.amazon.com/dp/${item.asin}?tag=${tag}`,
-      asin: item.asin,
+      rating: rating,
+      reviews: reviews,
+      image: image,
+      category: detectCategory(title),
+      amazonUrl: `https://www.amazon.com/dp/${asin}?tag=${tag}`,
+      asin: asin,
       isLightningDeal: discount > 50,
-      stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
+      stockStatus: isPrime ? 'Prime Eligible' : undefined,
     }
-  }).filter((deal: any) => deal.image && deal.discount >= 20)
+  }).filter((deal: any) => deal && deal.image && deal.currentPrice > 0 && deal.discount >= 20)
+
+  console.log(`[RapidAPI] Transformed ${transformedDeals.length} valid deals (min 20% discount)`)
+
+  return transformedDeals.slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data

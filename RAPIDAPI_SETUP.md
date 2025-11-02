@@ -74,12 +74,39 @@ npm run dev
 
 ## Testing Your Setup
 
-Test the API endpoint directly:
+### Option 1: Diagnostic Endpoint (Recommended)
+
+Use the diagnostic endpoint to test your RapidAPI connection:
+
+```bash
+# Test with environment variable
+curl http://localhost:3000/api/deals/test
+
+# Or test with a specific API key
+curl "http://localhost:3000/api/deals/test?key=your-api-key-here&category=electronics"
+```
+
+This will show you:
+- ✅ Whether your API key is configured
+- ✅ Connection status and response time
+- ✅ Response structure validation
+- ✅ Sample product data
+- ✅ Specific error messages if something fails
+
+### Option 2: Direct API Test
+
+Test the main deals endpoint:
 
 ```bash
 # This should show real Amazon products
 curl http://localhost:3000/api/deals?limit=5
 ```
+
+Check your server logs for detailed RapidAPI debugging information:
+- `[RapidAPI] Attempting to fetch deals...` - API call started
+- `[RapidAPI] Successfully fetched X deals` - Success!
+- `[RapidAPI] Error details:` - Detailed error information
+- `[RapidAPI] Falling back to curated deals` - Using fallback
 
 Look for products with current timestamps and different items each time you refresh.
 
@@ -130,10 +157,16 @@ Look for products with current timestamps and different items each time you refr
 - Check browser console for errors
 
 ### "RapidAPI not working"
-1. Verify API key is correct (no extra spaces)
-2. Check you subscribed to free tier
-3. Look at terminal for error messages
-4. Test with curl command above
+1. **Use the diagnostic endpoint**: `GET /api/deals/test?key=your-key` to see detailed error messages
+2. **Check server logs**: Look for `[RapidAPI]` prefixed messages with detailed error information
+3. **Verify API key**: Make sure there are no extra spaces or quotes in your `.env.local` file
+4. **Check subscription**: Ensure you subscribed to the free tier on RapidAPI
+5. **Test manually**: Use the diagnostic endpoint to see exactly what's failing
+6. **Common issues**:
+   - Invalid API key → Check `RAPIDAPI_KEY` environment variable
+   - Quota exceeded → Check your RapidAPI dashboard for usage limits
+   - Wrong API endpoint → The code uses `real-time-amazon-data.p.rapidapi.com`
+   - Response structure changed → Check diagnostic endpoint for actual response structure
 
 ### "Rate limit exceeded"
 - Free tier: 500/day is plenty for starting out
