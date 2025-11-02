@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Mark route as dynamic
+export const dynamic = 'force-dynamic'
+
 // Email subscription endpoint
 export async function POST(request: Request) {
   try {

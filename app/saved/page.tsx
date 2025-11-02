@@ -10,9 +10,17 @@ export default function SavedDealsPage() {
 
   useEffect(() => {
     // Load saved deals from localStorage
-    const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
-    setSavedDeals(saved)
-    setLoading(false)
+    try {
+      const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
+      setSavedDeals(Array.isArray(saved) ? saved : [])
+    } catch (error) {
+      // Handle corrupted localStorage data
+      console.error('Error loading saved deals:', error)
+      localStorage.setItem('savedDeals', '[]')
+      setSavedDeals([])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   const clearAll = () => {

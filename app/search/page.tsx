@@ -1,18 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { fetchDeals } from '@/utils/fetchDeals'
 import DealCard from '@/components/DealCard'
 
-export default function SearchPage() {
+function SearchContent() {
+  const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!searchQuery.trim()) return
+  const handleSearchQuery = async (query: string) => {
+    if (!query.trim()) return
 
     setLoading(true)
     setSearched(true)
@@ -20,12 +21,29 @@ export default function SearchPage() {
     // Fetch all deals and filter by search query
     const allDeals = await fetchDeals('all', 100)
     const filtered = allDeals.filter((deal: any) =>
-      deal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      deal.category.toLowerCase().includes(searchQuery.toLowerCase())
+      deal.title.toLowerCase().includes(query.toLowerCase()) ||
+      deal.category.toLowerCase().includes(query.toLowerCase())
     )
 
     setResults(filtered)
     setLoading(false)
+  }
+
+  // Handle URL query parameter
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q) {
+      setSearchQuery(q)
+      // Trigger search automatically
+      handleSearchQuery(q)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+    await handleSearchQuery(searchQuery)
   }
 
   const popularSearches = [
@@ -129,5 +147,22 @@ export default function SearchPage() {
         ) : null}
       </div>
     </main>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center py-16">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-4 text-gray-600">Loading search...</p>
+          </div>
+        </div>
+      </main>
+    }>
+      <SearchContent />
+    </Suspense>
   )
 }

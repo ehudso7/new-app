@@ -32,9 +32,16 @@ export default function DealCard({ deal }: DealCardProps) {
 
   // Check if deal is already saved on mount
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
-    const isAlreadySaved = saved.some((d: any) => d.id === deal.id)
-    setIsSaved(isAlreadySaved)
+    try {
+      const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
+      const isAlreadySaved = Array.isArray(saved) && saved.some((d: any) => d.id === deal.id)
+      setIsSaved(isAlreadySaved)
+    } catch (error) {
+      // Handle corrupted localStorage data
+      console.error('Error reading saved deals:', error)
+      localStorage.setItem('savedDeals', '[]')
+      setIsSaved(false)
+    }
   }, [deal.id])
 
   // Lightning deal countdown timer (for demo: random time between 1-6 hours)
@@ -107,21 +114,37 @@ export default function DealCard({ deal }: DealCardProps) {
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation()
 
-    // Save to localStorage
-    const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
-    const dealIndex = saved.findIndex((d: any) => d.id === deal.id)
+    try {
+      // Save to localStorage
+      const saved = JSON.parse(localStorage.getItem('savedDeals') || '[]')
+      if (!Array.isArray(saved)) {
+        throw new Error('Invalid saved deals format')
+      }
+      const dealIndex = saved.findIndex((d: any) => d.id === deal.id)
 
-    if (dealIndex > -1) {
-      // Remove from saved
-      saved.splice(dealIndex, 1)
-      setIsSaved(false)
-    } else {
-      // Add to saved
-      saved.push(deal)
-      setIsSaved(true)
+      if (dealIndex > -1) {
+        // Remove from saved
+        saved.splice(dealIndex, 1)
+        setIsSaved(false)
+      } else {
+        // Add to saved
+        saved.push(deal)
+        setIsSaved(true)
+      }
+
+      localStorage.setItem('savedDeals', JSON.stringify(saved))
+    } catch (error) {
+      // Handle corrupted localStorage data
+      console.error('Error saving deal:', error)
+      localStorage.setItem('savedDeals', '[]')
+      // Try to save just this deal
+      try {
+        localStorage.setItem('savedDeals', JSON.stringify([deal]))
+        setIsSaved(true)
+      } catch (err) {
+        console.error('Failed to save deal:', err)
+      }
     }
-
-    localStorage.setItem('savedDeals', JSON.stringify(saved))
 
     // Track save event
     fetch('/api/analytics/track', {

@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Mark route as dynamic
+export const dynamic = 'force-dynamic'
+
 // This endpoint is called by cron jobs or manually from admin to refresh deals
 // Vercel Cron: https://vercel.com/docs/cron-jobs
 
