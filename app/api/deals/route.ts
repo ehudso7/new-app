@@ -10,6 +10,18 @@ export async function GET(request: Request) {
     // Fetch from RapidAPI or fallback to curated real Amazon deals
     const deals = await fetchRealDeals(category, limit)
 
+    // Ensure we always return at least some deals from curated list
+    if (!deals || deals.length === 0) {
+      console.warn('No deals returned, using curated deals as fallback')
+      const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+      const fallbackDeals = getCuratedRealDeals(category, limit, partnerTag)
+      return NextResponse.json({
+        success: true,
+        count: fallbackDeals.length,
+        deals: fallbackDeals,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       count: deals.length,
@@ -17,10 +29,25 @@ export async function GET(request: Request) {
     })
   } catch (error: any) {
     console.error('Error fetching deals:', error)
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+    // Even on error, return curated deals so users see something
+    try {
+      const partnerTag = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'dealsplus077-20'
+      const { searchParams } = new URL(request.url)
+      const category = searchParams.get('category') || 'all'
+      const limit = parseInt(searchParams.get('limit') || '24')
+      const fallbackDeals = getCuratedRealDeals(category, limit, partnerTag)
+      return NextResponse.json({
+        success: true,
+        count: fallbackDeals.length,
+        deals: fallbackDeals,
+      })
+    } catch (fallbackError) {
+      // If even curated deals fail, return error
+      return NextResponse.json(
+        { success: false, error: error.message, deals: [] },
+        { status: 500 }
+      )
+    }
   }
 }
 
@@ -31,7 +58,12 @@ async function fetchRealDeals(category: string, limit: number) {
   // If RapidAPI is configured, use it
   if (rapidApiKey) {
     try {
-      return await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      const rapidApiDeals = await fetchFromRapidAPI(category, limit, rapidApiKey, partnerTag)
+      // If RapidAPI returns deals, use them; otherwise fall back to curated deals
+      if (rapidApiDeals && rapidApiDeals.length > 0) {
+        return rapidApiDeals
+      }
+      console.log('RapidAPI returned no deals, falling back to curated deals')
     } catch (error) {
       console.error('RapidAPI error, falling back to curated deals:', error)
     }
@@ -61,8 +93,18 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
 
   const data = await response.json()
 
+  // Check if response structure is valid
+  if (!data || !data.data) {
+    throw new Error('Invalid RapidAPI response structure')
+  }
+
   // Transform RapidAPI response
-  return (data.data?.products || []).slice(0, limit).map((item: any) => {
+  const products = data.data?.products || []
+  if (products.length === 0) {
+    throw new Error('No products returned from RapidAPI')
+  }
+
+  const deals = products.slice(0, limit * 2).map((item: any) => {
     const price = parseFloat(item.product_price?.replace(/[^0-9.]/g, '') || '0')
     const originalPrice = parseFloat(item.product_original_price?.replace(/[^0-9.]/g, '') || price * 1.5)
     const discount = originalPrice > 0 ? Math.round(((originalPrice - price) / originalPrice) * 100) : 30
@@ -83,6 +125,13 @@ async function fetchFromRapidAPI(category: string, limit: number, apiKey: string
       stockStatus: item.is_prime ? 'Prime Eligible' : undefined,
     }
   }).filter((deal: any) => deal.image && deal.discount >= 20)
+
+  // Return up to the limit, but throw if we have no deals after filtering
+  if (deals.length === 0) {
+    throw new Error('No valid deals after filtering from RapidAPI')
+  }
+
+  return deals.slice(0, limit)
 }
 
 // Curated real Amazon deals with actual product images and data
