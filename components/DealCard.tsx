@@ -201,6 +201,7 @@ export default function DealCard({ deal }: DealCardProps) {
             src={deal.image}
             alt={deal.title}
             fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
             className="object-contain p-4 cursor-pointer hover:scale-105 transition-transform"
             onClick={handleClick}
             onError={() => setImageError(true)}
@@ -262,7 +263,7 @@ export default function DealCard({ deal }: DealCardProps) {
 
         <button
           onClick={handleClick}
-          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 transition-transform"
+          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105"
         >
           View on Amazon →
         </button>

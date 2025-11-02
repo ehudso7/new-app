@@ -1,14 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { fetchDeals } from '@/utils/fetchDeals'
 import DealCard from '@/components/DealCard'
 
 export default function SearchPage() {
+  const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+
+  // Read query parameter from URL on mount
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q) {
+      setSearchQuery(q)
+      // Trigger search automatically if query param exists
+      const performSearch = async () => {
+        setLoading(true)
+        setSearched(true)
+        const allDeals = await fetchDeals('all', 100)
+        const filtered = allDeals.filter((deal: any) =>
+          deal.title.toLowerCase().includes(q.toLowerCase()) ||
+          deal.category.toLowerCase().includes(q.toLowerCase())
+        )
+        setResults(filtered)
+        setLoading(false)
+      }
+      performSearch()
+    }
+  }, [searchParams])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
